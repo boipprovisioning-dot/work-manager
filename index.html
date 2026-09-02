@@ -265,6 +265,11 @@ let state = {
   otYear: new Date().getFullYear(),
   apptFilter: 'all',
   planworkSearch: '',
+  planworkDateFrom: '',
+  planworkDateTo: '',
+  planworkPage: 1,
+  planworkPageSize: 10,
+  planworkSelected: new Set(),
   reportPeriod: 'month',
   reportRef: fmtDate(new Date()),
 };
@@ -1858,6 +1863,25 @@ function bindSmcDialogEvents(){
 }
 
 /* ================= PLANWORK ================= */
+const PW_PAGE_SIZES = [10, 25, 50, 100];
+
+function pwBuildPager(current, total){
+  if(total<=1) return [{page:1}];
+  const pages = new Set([1, total]);
+  for(let i=current-2;i<=current+2;i++){ if(i>=1 && i<=total) pages.add(i); }
+  if(current<=5){ for(let i=1;i<=Math.min(5,total);i++) pages.add(i); }
+  if(current>=total-4){ for(let i=Math.max(1,total-4);i<=total;i++) pages.add(i); }
+  const sorted = [...pages].sort((a,b)=>a-b);
+  const result = [];
+  let prev = 0;
+  sorted.forEach(p=>{
+    if(prev && p-prev>1) result.push({ellipsis:true});
+    result.push({page:p});
+    prev = p;
+  });
+  return result;
+}
+
 function viewPlanwork(){
   let list = state.planworks.slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
   const q = state.planworkSearch.trim().toLowerCase();
@@ -1865,6 +1889,23 @@ function viewPlanwork(){
     list = list.filter(p=> [p.planNo,p.detail,p.node,p.reference,p.assignBy,p.workType,p.vendor,p.remark,p.remarkMail]
       .some(v=> (v||'').toLowerCase().includes(q)));
   }
+  if(state.planworkDateFrom){ list = list.filter(p=> (p.date||'') >= state.planworkDateFrom); }
+  if(state.planworkDateTo){ list = list.filter(p=> (p.date||'') <= state.planworkDateTo); }
+
+  const total = list.length;
+  const pageSize = state.planworkPageSize;
+  const totalPages = Math.max(1, Math.ceil(total/pageSize));
+  if(state.planworkPage>totalPages) state.planworkPage = totalPages;
+  if(state.planworkPage<1) state.planworkPage = 1;
+  const pageStart = total? (state.planworkPage-1)*pageSize : 0;
+  const pageEnd = Math.min(total, pageStart+pageSize);
+  const pageList = list.slice(pageStart, pageEnd);
+
+  const pageIds = new Set(pageList.map(p=>p.id));
+  const selectedOnPage = pageList.filter(p=>state.planworkSelected.has(p.id)).length;
+  const selectedCount = state.planworkSelected.size;
+
+  const pagerItems = pwBuildPager(state.planworkPage, totalPages);
 
   return `
     <div class="topbar">
@@ -1883,15 +1924,37 @@ function viewPlanwork(){
         <label>ค้นหา</label>
         <input id="pwSearch" value="${state.planworkSearch}" placeholder="ค้นหา Planwork_No, Detail, Node/MPLS, Vendor ...">
       </div>
+      <div class="field" style="min-width:160px;">
+        <label>จากวันที่</label>
+        <input type="date" id="pwDateFrom" value="${state.planworkDateFrom||''}">
+      </div>
+      <div class="field" style="min-width:160px;">
+        <label>ถึงวันที่</label>
+        <input type="date" id="pwDateTo" value="${state.planworkDateTo||''}">
+      </div>
+      <div class="field" style="flex:0 0 auto; align-self:flex-end;">
+        <button class="btn btn-ghost" id="pwDateClearFilter" type="button">ล้างวันที่</button>
+      </div>
       <div style="font-size:11.5px; color:var(--slate-400); max-width:420px; padding-bottom:4px;">
         ไฟล์ Excel แถวแรกต้องเป็นหัวตาราง ระบบจะจับคู่คอลัมน์ตามชื่อ: D/M/Y, Day/Night Time, Planwork_No, Detail, Node/MPLS, Referance, Assingment By, Work Type, Vender, ReMark, ReMark Mail (ไม่สนตัวพิมพ์เล็ก-ใหญ่)
       </div>
     </div>
+
+    ${selectedCount? `
+    <div class="card" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 16px;">
+      <span style="font-size:12.5px; font-weight:600;">เลือกแล้ว ${selectedCount} รายการ</span>
+      <button class="btn btn-amber btn-sm" id="pwBulkComplete" type="button">✓ ทำเครื่องหมายเสร็จ</button>
+      <button class="btn btn-ghost btn-sm" id="pwBulkReopen" type="button">↺ เปิดใหม่</button>
+      <button class="btn btn-danger btn-sm" id="pwBulkDelete" type="button">ลบที่เลือก</button>
+      <button class="btn btn-ghost btn-sm" id="pwBulkClearSel" type="button">ล้างการเลือก</button>
+    </div>` : ''}
+
     <div class="card" style="overflow-x:auto;">
-      ${list.length? `
-      <table style="min-width:1180px;">
+      ${pageList.length? `
+      <table style="min-width:1230px;">
         <thead>
           <tr>
+            <th style="width:30px;"><input type="checkbox" id="pwSelectAllPage" ${selectedOnPage===pageList.length&&pageList.length? 'checked':''}></th>
             <th>D/M/Y</th>
             <th>Day/Night Time</th>
             <th>Planwork_No</th>
@@ -1908,8 +1971,9 @@ function viewPlanwork(){
           </tr>
         </thead>
         <tbody>
-          ${list.map(p=>`
+          ${pageList.map(p=>`
             <tr${p.completed?' style="opacity:.6;"':''}>
+              <td><input type="checkbox" class="pw-row-chk" data-rowchk="${p.id}" ${state.planworkSelected.has(p.id)?'checked':''}></td>
               <td class="mono">${dmy(p.date)}</td>
               <td class="mono">${p.dnType?`<span class="badge ${p.dnType==='Night'?'night':'morning'}">${p.dnType}</span>`:''} ${p.dnTime||''}</td>
               <td style="font-weight:600; ${p.completed?'text-decoration:line-through;':''}">${p.planNo||'-'}</td>
@@ -1929,7 +1993,24 @@ function viewPlanwork(){
               </td>
             </tr>`).join('')}
         </tbody>
-      </table>` : `<div class="empty">ยังไม่มีข้อมูล Planwork ${q?'ที่ตรงกับการค้นหา':''}</div>`}
+      </table>
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-top:14px; padding-top:14px; border-top:1px solid var(--line);">
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div style="font-size:12.5px; color:var(--slate-400);">Showing ${total? pageStart+1:0} to ${pageEnd} of ${total} entries</div>
+          <div style="display:flex; align-items:center; gap:6px; font-size:12.5px;">
+            Show <select id="pwPageSize" style="width:auto; padding:4px 8px;">${PW_PAGE_SIZES.map(s=>`<option value="${s}" ${state.planworkPageSize===s?'selected':''}>${s}</option>`).join('')}</select> entries
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" id="pwPagePrev" type="button" ${state.planworkPage<=1?'disabled':''}>Previous</button>
+          ${pagerItems.map(it=> it.ellipsis
+            ? `<span style="padding:0 6px; color:var(--slate-400);">...</span>`
+            : `<button class="btn ${it.page===state.planworkPage?'btn-amber':'btn-ghost'} btn-sm" data-page="${it.page}" type="button">${it.page}</button>`
+          ).join('')}
+          <button class="btn btn-ghost btn-sm" id="pwPageNext" type="button" ${state.planworkPage>=totalPages?'disabled':''}>Next</button>
+        </div>
+      </div>
+      ` : `<div class="empty">ยังไม่มีข้อมูล Planwork ${q||state.planworkDateFrom||state.planworkDateTo?'ที่ตรงกับการค้นหา/ตัวกรอง':''}</div>`}
     </div>
   `;
 }
@@ -2862,9 +2943,58 @@ function bindContentEvents(){
   const pwSearch = c.querySelector('#pwSearch');
   if(pwSearch){
     pwSearch.oninput = ()=>{ state.planworkSearch = pwSearch.value; };
-    pwSearch.onkeydown = (e)=>{ if(e.key==='Enter'){ renderContent(); } };
-    pwSearch.onblur = ()=>{ renderContent(); };
+    pwSearch.onkeydown = (e)=>{ if(e.key==='Enter'){ state.planworkPage=1; renderContent(); } };
+    pwSearch.onblur = ()=>{ state.planworkPage=1; renderContent(); };
   }
+  const pwDateFrom = c.querySelector('#pwDateFrom');
+  if(pwDateFrom) pwDateFrom.onchange = ()=>{ state.planworkDateFrom = pwDateFrom.value; state.planworkPage=1; renderContent(); };
+  const pwDateTo = c.querySelector('#pwDateTo');
+  if(pwDateTo) pwDateTo.onchange = ()=>{ state.planworkDateTo = pwDateTo.value; state.planworkPage=1; renderContent(); };
+  const pwDateClearFilter = c.querySelector('#pwDateClearFilter');
+  if(pwDateClearFilter) pwDateClearFilter.onclick = ()=>{ state.planworkDateFrom=''; state.planworkDateTo=''; state.planworkPage=1; renderContent(); };
+
+  // planwork: row selection checkboxes
+  c.querySelectorAll('[data-rowchk]').forEach(el=> el.onchange = ()=>{
+    if(el.checked) state.planworkSelected.add(el.dataset.rowchk);
+    else state.planworkSelected.delete(el.dataset.rowchk);
+    renderContent();
+  });
+  const pwSelectAllPage = c.querySelector('#pwSelectAllPage');
+  if(pwSelectAllPage) pwSelectAllPage.onchange = ()=>{
+    c.querySelectorAll('[data-rowchk]').forEach(el=>{
+      if(pwSelectAllPage.checked) state.planworkSelected.add(el.dataset.rowchk);
+      else state.planworkSelected.delete(el.dataset.rowchk);
+    });
+    renderContent();
+  };
+  const pwBulkComplete = c.querySelector('#pwBulkComplete');
+  if(pwBulkComplete) pwBulkComplete.onclick = async ()=>{
+    state.planworks.forEach(p=>{ if(state.planworkSelected.has(p.id)) p.completed = true; });
+    await saveList('planworks', state.planworks); renderContent();
+  };
+  const pwBulkReopen = c.querySelector('#pwBulkReopen');
+  if(pwBulkReopen) pwBulkReopen.onclick = async ()=>{
+    state.planworks.forEach(p=>{ if(state.planworkSelected.has(p.id)) p.completed = false; });
+    await saveList('planworks', state.planworks); renderContent();
+  };
+  const pwBulkDelete = c.querySelector('#pwBulkDelete');
+  if(pwBulkDelete) pwBulkDelete.onclick = async ()=>{
+    if(!confirm(`ยืนยันการลบ Planwork ที่เลือก ${state.planworkSelected.size} รายการ?`)) return;
+    state.planworks = state.planworks.filter(p=>!state.planworkSelected.has(p.id));
+    state.planworkSelected.clear();
+    await saveList('planworks', state.planworks); renderContent();
+  };
+  const pwBulkClearSel = c.querySelector('#pwBulkClearSel');
+  if(pwBulkClearSel) pwBulkClearSel.onclick = ()=>{ state.planworkSelected.clear(); renderContent(); };
+
+  // planwork: pagination
+  const pwPageSize = c.querySelector('#pwPageSize');
+  if(pwPageSize) pwPageSize.onchange = ()=>{ state.planworkPageSize = Number(pwPageSize.value); state.planworkPage=1; renderContent(); };
+  const pwPagePrev = c.querySelector('#pwPagePrev');
+  if(pwPagePrev) pwPagePrev.onclick = ()=>{ state.planworkPage = Math.max(1, state.planworkPage-1); renderContent(); };
+  const pwPageNext = c.querySelector('#pwPageNext');
+  if(pwPageNext) pwPageNext.onclick = ()=>{ state.planworkPage = state.planworkPage+1; renderContent(); };
+  c.querySelectorAll('[data-page]').forEach(el=> el.onclick = ()=>{ state.planworkPage = Number(el.dataset.page); renderContent(); });
 
   // OT
   const otAdd = c.querySelector('#addOT'); if(otAdd) otAdd.onclick=()=>openOTDialog();
