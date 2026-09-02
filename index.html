@@ -812,6 +812,7 @@ function computeReportData(){
   const pwInRange = state.planworks.filter(p=> p.date>=start && p.date<=end);
   const pwByType = {};
   pwInRange.forEach(p=>{ const k = p.workType || 'ไม่ระบุ'; pwByType[k] = (pwByType[k]||0) + 1; });
+  const pwCompletedCount = pwInRange.filter(p=>p.completed).length;
 
   const otInRange = state.otEntries.filter(o=> o.date>=start && o.date<=end);
   const otTotals = {};
@@ -839,14 +840,14 @@ function computeReportData(){
     start, end, label,
     shiftsInRange, shiftTotals,
     apptsInRange, apptCounts, apptDoneCount,
-    pwInRange, pwByType,
+    pwInRange, pwByType, pwCompletedCount,
     otInRange, otTotals, otSumAll, otWeightedTotals, otWeightedSumAll,
     leavesInRange, leaveDaysByEmp, leaveDaysByType, totalLeaveDays,
   };
 }
 
 function viewReport(){
-  const {start, end, label, shiftsInRange, shiftTotals, apptsInRange, apptCounts, apptDoneCount, pwInRange, pwByType, otTotals, otSumAll, otWeightedTotals, leaveDaysByEmp, leaveDaysByType, totalLeaveDays} = computeReportData();
+  const {start, end, label, shiftsInRange, shiftTotals, apptsInRange, apptCounts, apptDoneCount, pwInRange, pwByType, pwCompletedCount, otTotals, otSumAll, otWeightedTotals, leaveDaysByEmp, leaveDaysByType, totalLeaveDays} = computeReportData();
 
   return `
     <div class="topbar">
@@ -901,6 +902,11 @@ function viewReport(){
     <div class="card">
       <h3>สรุป Planwork <span class="hint">แยกตาม Work Type</span></h3>
       ${pwInRange.length? `
+      <div class="grid-stats" style="margin-bottom:14px;">
+        <div class="stat-card violet"><div class="n">${pwInRange.length}</div><div class="l">Planwork ทั้งหมด</div></div>
+        <div class="stat-card teal"><div class="n">${pwCompletedCount}</div><div class="l">Completed</div></div>
+        <div class="stat-card amber"><div class="n">${pwInRange.length - pwCompletedCount}</div><div class="l">Pending</div></div>
+      </div>
       <table>
         <thead><tr><th>Work Type</th><th>จำนวน</th></tr></thead>
         <tbody>${Object.entries(pwByType).map(([k,v])=>`<tr><td>${k}</td><td class="mono">${v}</td></tr>`).join('')}</tbody>
@@ -948,6 +954,7 @@ async function exportReportToExcel(){
       ['กะที่จัดทั้งหมด', d.shiftsInRange.length],
       ['นัดหมายติดตั้ง', d.apptsInRange.length],
       ['Planwork', d.pwInRange.length],
+      ['Planwork Completed', d.pwCompletedCount],
       ['ชั่วโมง OT รวม', Number(d.otSumAll.toFixed(1))],
       ['วันลารวม (วัน)', d.totalLeaveDays],
     ];
@@ -966,6 +973,9 @@ async function exportReportToExcel(){
 
     const pwRows = [['Work Type','จำนวน']];
     Object.entries(d.pwByType).forEach(([k,v])=> pwRows.push([k, v]));
+    pwRows.push([]);
+    pwRows.push(['Completed', d.pwCompletedCount]);
+    pwRows.push(['Pending', d.pwInRange.length - d.pwCompletedCount]);
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pwRows), 'Planwork');
 
     const otRows = [['พนักงาน','ชั่วโมง OT','ชั่วโมงเทียบเท่า (คูณแรง)']];
