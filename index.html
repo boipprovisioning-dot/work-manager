@@ -1938,11 +1938,11 @@ const PW_PERIODS = [
   {v:'day', label:'DayTime', range:'09:00-20:59', dnType:'Day'},
   {v:'night', label:'NightTime', range:'21:00-08:59', dnType:'Night'},
 ];
-let pwNotifyState = null; // { type, period, planworkSelected:Set<planworkId>, planworkTodayOnly, to, cc }
+let pwNotifyState = null; // { type, period, planworkSelected:Set<planworkId>, dateFilter, to, cc }
 
 function pwPlanworkPool(){
   let list = state.planworks.slice();
-  if(pwNotifyState.planworkTodayOnly){ const today = fmtDate(new Date()); list = list.filter(p=>p.date===today); }
+  if(pwNotifyState.dateFilter){ list = list.filter(p=>p.date===pwNotifyState.dateFilter); }
   const wantDn = (PW_PERIODS.find(p=>p.v===pwNotifyState.period)||PW_PERIODS[0]).dnType;
   list = list.filter(p=> !p.dnType || p.dnType===wantDn); // Planwork with no Day/Night set isn't excluded
   return list.sort((a,b)=> (a.date||'').localeCompare(b.date||''));
@@ -1997,7 +1997,7 @@ function pwBodyText(){
 }
 
 function openPwNotifyDialog(){
-  pwNotifyState = { type:'olt', period:'day', planworkSelected:new Set(), planworkTodayOnly:true, to:PW_TO_DEFAULT, cc:PW_CC_DEFAULT };
+  pwNotifyState = { type:'olt', period:'day', planworkSelected:new Set(), dateFilter:fmtDate(new Date()), to:PW_TO_DEFAULT, cc:PW_CC_DEFAULT };
   renderPwNotifyDialog();
 }
 
@@ -2013,7 +2013,7 @@ function renderPwNotifyDialog(){
           <div class="mono" style="color:var(--slate-400); font-size:11px;">${dmy(p.date)}${p.dnType? ' · '+p.dnType : ''}</div>
         </span>
       </label>`).join('')
-    : `<div class="empty" style="padding:4px 2px; font-size:12.5px;">ไม่มี Planwork ${periodLabel}${pwNotifyState.planworkTodayOnly? 'วันนี้':''}</div>`;
+    : `<div class="empty" style="padding:4px 2px; font-size:12.5px;">ไม่มี Planwork ${periodLabel}${pwNotifyState.dateFilter? ' วันที่ '+dmy(pwNotifyState.dateFilter) : ''}</div>`;
 
   const items = pwAllItems();
   const itemsHtml = items.length
@@ -2038,9 +2038,12 @@ function renderPwNotifyDialog(){
             <span style="font-size:12.5px; font-weight:600; color:var(--navy-800); white-space:nowrap;">ช่วงเวลา</span>
             <select id="pwPeriod" style="width:auto;">${PW_PERIODS.map(p=>`<option value="${p.v}" ${pwNotifyState.period===p.v?'selected':''}>${p.label} (${p.range})</option>`).join('')}</select>
           </div>
-          <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:500; cursor:pointer; white-space:nowrap; flex-shrink:0;">
-            <input type="checkbox" id="pwTodayOnly" style="width:auto;" ${pwNotifyState.planworkTodayOnly?'checked':''}> แสดงเฉพาะวันนี้
-          </label>
+          <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+            <span style="font-size:12.5px; font-weight:600; color:var(--navy-800); white-space:nowrap;">วันที่</span>
+            <input type="date" id="pwDateFilter" style="width:auto;" value="${pwNotifyState.dateFilter||''}">
+            <button class="btn btn-ghost btn-sm" id="pwDateToday" type="button">วันนี้</button>
+            <button class="btn btn-ghost btn-sm" id="pwDateClear" type="button">ทุกวันที่</button>
+          </div>
           <div style="display:flex; gap:6px; flex-shrink:0; margin-left:auto;">
             <button class="btn btn-ghost btn-sm" id="pwSelectAll" type="button">เลือกทั้งหมด</button>
             <button class="btn btn-ghost btn-sm" id="pwClearAll" type="button">ล้างการเลือก</button>
@@ -2093,10 +2096,24 @@ function bindPwNotifyDialogEvents(){
     renderPwNotifyDialog();
   };
 
-  const todayChk = dlg.querySelector('#pwTodayOnly');
-  if(todayChk) todayChk.onchange = ()=>{
+  const dateFilterInput = dlg.querySelector('#pwDateFilter');
+  if(dateFilterInput) dateFilterInput.onchange = ()=>{
     captureEditable();
-    pwNotifyState.planworkTodayOnly = todayChk.checked;
+    pwNotifyState.dateFilter = dateFilterInput.value || '';
+    pwPruneSelection();
+    renderPwNotifyDialog();
+  };
+  const dateTodayBtn = dlg.querySelector('#pwDateToday');
+  if(dateTodayBtn) dateTodayBtn.onclick = ()=>{
+    captureEditable();
+    pwNotifyState.dateFilter = fmtDate(new Date());
+    pwPruneSelection();
+    renderPwNotifyDialog();
+  };
+  const dateClearBtn = dlg.querySelector('#pwDateClear');
+  if(dateClearBtn) dateClearBtn.onclick = ()=>{
+    captureEditable();
+    pwNotifyState.dateFilter = '';
     pwPruneSelection();
     renderPwNotifyDialog();
   };
