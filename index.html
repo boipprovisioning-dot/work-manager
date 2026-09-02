@@ -1,0 +1,2879 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ศูนย์ควบคุมงาน</title>
+<style>
+  :root{
+    --navy-950:#0B1220;
+    --navy-900:#101A2C;
+    --navy-800:#1A2740;
+    --navy-700:#25344F;
+    --slate-400:#8A97AC;
+    --slate-300:#B7C0CF;
+    --paper:#F3F5F8;
+    --paper-card:#FFFFFF;
+    --line:#E4E8EF;
+    --amber:#F2A93B;
+    --amber-dim:#FCEBCB;
+    --teal:#159E93;
+    --teal-dim:#D7F0EC;
+    --violet:#6E62C9;
+    --violet-dim:#E4E1F7;
+    --red:#DA5B5B;
+    --red-dim:#FADADA;
+    --green:#3F9E5D;
+    --green-dim:#DCF0E2;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--navy-950);
+    font-family: 'Inter', 'Segoe UI', -apple-system, sans-serif;
+    font-size:14px;
+  }
+  .mono{ font-family:'IBM Plex Mono','SFMono-Regular',Consolas,monospace; }
+  #app{ display:flex; min-height:100vh; }
+
+  /* Sidebar */
+  #sidebar{
+    width:220px; flex-shrink:0; background:var(--navy-950);
+    color:var(--slate-300); display:flex; flex-direction:column;
+    padding:18px 12px;
+  }
+  #sidebar .brand{
+    display:flex; align-items:center; gap:8px; padding:6px 8px 18px 8px;
+    color:#fff; font-weight:700; font-size:15px; letter-spacing:.2px;
+    border-bottom:1px solid rgba(255,255,255,.08); margin-bottom:14px;
+  }
+  #sidebar .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 3px rgba(242,169,59,.25);}
+  .nav-item{
+    display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:8px;
+    cursor:pointer; margin-bottom:2px; color:var(--slate-300); font-size:13.5px; font-weight:500;
+    transition:background .12s, color .12s;
+  }
+  .nav-item svg{ width:16px; height:16px; flex-shrink:0; opacity:.85;}
+  .nav-item:hover{ background:rgba(255,255,255,.06); color:#fff;}
+  .nav-item.active{ background:var(--amber); color:#231404; }
+  .nav-item.active svg{ opacity:1; }
+  #sidebar .footnote{ margin-top:auto; font-size:11px; color:var(--slate-400); padding:10px 8px; line-height:1.5;}
+
+  /* Main */
+  #main{ flex:1; min-width:0; padding:22px 28px 60px 28px; }
+  .topbar{ display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:18px; flex-wrap:wrap; gap:10px;}
+  .topbar h1{ font-size:20px; margin:0; font-weight:700; }
+  .topbar .sub{ color:var(--slate-400); font-size:12.5px; margin-top:3px;}
+  .btn{
+    border:none; border-radius:8px; padding:9px 14px; font-size:13px; font-weight:600;
+    cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:filter .1s, transform .05s;
+  }
+  .btn:active{ transform:translateY(1px); }
+  .btn-amber{ background:var(--amber); color:#241505; }
+  .btn-amber:hover{ filter:brightness(1.05); }
+  .btn-ghost{ background:#fff; color:var(--navy-900); border:1px solid var(--line); }
+  .btn-ghost:hover{ background:#f7f8fa; }
+  .btn-danger{ background:var(--red-dim); color:#8a1f1f; }
+  .btn-sm{ padding:5px 9px; font-size:12px; border-radius:6px; }
+
+  .grid-stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:20px;}
+  .stat-card{ background:var(--paper-card); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px; }
+  .stat-card .n{ font-size:26px; font-weight:700; font-family:'IBM Plex Mono',monospace; }
+  .stat-card .l{ font-size:12px; color:var(--slate-400); margin-top:2px; }
+  .stat-card.amber{ border-top:3px solid var(--amber); }
+  .stat-card.teal{ border-top:3px solid var(--teal); }
+  .stat-card.violet{ border-top:3px solid var(--violet); }
+  .stat-card.red{ border-top:3px solid var(--red); }
+
+  .card{ background:var(--paper-card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:16px; }
+  .card h3{ margin:0 0 12px 0; font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:space-between; }
+  .card h3 .hint{ font-weight:500; font-size:11.5px; color:var(--slate-400); }
+
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  th{ text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--slate-400); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--line);}
+  td{ padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  tr:last-child td{ border-bottom:none; }
+  tr:hover td{ background:#FAFBFD; }
+
+  .badge{ display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:100px; font-size:11.5px; font-weight:700; font-family:'IBM Plex Mono',monospace;}
+  .badge.morning{ background:var(--amber-dim); color:#8a5a0c; }
+  .badge.afternoon{ background:var(--teal-dim); color:#0d5f57; }
+  .badge.night{ background:var(--violet-dim); color:#453a9c; }
+  .badge.off{ background:#EEF0F3; color:#7a8494; }
+  .badge.pending{ background:var(--amber-dim); color:#8a5a0c; }
+  .badge.confirmed{ background:var(--teal-dim); color:#0d5f57; }
+  .badge.done{ background:var(--green-dim); color:#265c39; }
+  .badge.cancelled{ background:var(--red-dim); color:#8a1f1f; }
+  .badge.leavetype{ background:var(--red-dim); color:#8a1f1f; }
+
+  input,select,textarea{
+    width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:7px;
+    font-size:13px; font-family:inherit; background:#fff; color:var(--navy-950);
+  }
+  input[type=checkbox],input[type=radio]{ width:auto; padding:0; border:none; background:none; flex:0 0 auto; }
+  input:focus,select:focus,textarea:focus{ outline:2px solid var(--amber); outline-offset:0; border-color:var(--amber);}
+  label{ font-size:12px; font-weight:600; color:var(--navy-800); display:block; margin-bottom:4px; }
+  .field{ margin-bottom:12px; }
+  .field-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+  dialog{ border:none; border-radius:12px; padding:0; width:min(480px,92vw); box-shadow:0 20px 60px rgba(10,20,40,.25); }
+  dialog::backdrop{ background:rgba(10,17,32,.45); }
+  .dialog-head{ padding:16px 18px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
+  .dialog-head h3{ margin:0; font-size:15px; }
+  .dialog-body{ padding:18px; max-height:70vh; overflow-y:auto; overflow-x:hidden; }
+  .dialog-foot{ padding:14px 18px; border-top:1px solid var(--line); display:flex; justify-content:flex-end; gap:8px; }
+  .icon-btn{ background:none; border:none; cursor:pointer; color:var(--slate-400); font-size:18px; line-height:1; padding:2px 6px; border-radius:6px; }
+  .icon-btn:hover{ background:#f0f2f5; color:var(--navy-900);}
+
+  .empty{ text-align:center; padding:34px 10px; color:var(--slate-400); font-size:13px; }
+  .weeknav{ display:flex; align-items:center; gap:10px; }
+  .weeknav .lbl{ font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; min-width:150px; text-align:center;}
+
+  .cell-shift{ cursor:pointer; border:1px dashed transparent; border-radius:7px; padding:4px; min-height:30px; display:flex; align-items:center; justify-content:center;}
+  .cell-shift:hover{ border-color:var(--slate-300); background:#FAFBFD; }
+  .day-col-head{ text-align:center !important; }
+  .today-col{ background:#FFF9EE; }
+
+  .leave-grid{ display:grid; grid-template-columns: 140px 1fr; }
+  .leave-row{ display:contents; }
+  .leave-name{ padding:8px 10px; font-weight:600; border-bottom:1px solid var(--line); display:flex; align-items:center; font-size:12.5px;}
+  .leave-days{ display:grid; grid-template-columns:repeat(var(--ndays,30),1fr); border-bottom:1px solid var(--line); position:relative; }
+  .leave-day{ border-left:1px solid #F0F2F5; min-height:34px; }
+  .leave-day.weekend{ background:#FAFBFD; }
+  .leave-bar{ position:absolute; height:20px; top:7px; border-radius:5px; font-size:10px; color:#fff; display:flex; align-items:center; padding:0 6px; overflow:hidden; white-space:nowrap; font-weight:600;}
+  .leave-header-days{ display:grid; grid-template-columns:repeat(var(--ndays,30),1fr); }
+  .leave-header-day{ text-align:center; font-size:10px; color:var(--slate-400); padding-bottom:4px; font-family:'IBM Plex Mono',monospace;}
+
+  .pill-tabs{ display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+  .pill-tab{ padding:6px 12px; border-radius:100px; background:#fff; border:1px solid var(--line); font-size:12.5px; font-weight:600; cursor:pointer; color:var(--slate-400); }
+  .pill-tab.active{ background:var(--navy-950); color:#fff; border-color:var(--navy-950); }
+
+  .filters{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; align-items:flex-end; }
+  .filters .field{ margin-bottom:0; min-width:150px; }
+
+  .banner{ background:var(--violet-dim); color:#3c3178; padding:10px 14px; border-radius:8px; font-size:12.5px; margin-bottom:16px; display:flex; gap:8px; align-items:center;}
+  ::-webkit-scrollbar{ height:8px; width:8px; }
+  ::-webkit-scrollbar-thumb{ background:#D8DDE6; border-radius:8px; }
+
+  /* Calendar */
+  .cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); border-top:1px solid var(--line); border-left:1px solid var(--line); }
+  .cal-head{ display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:0; }
+  .cal-head div{ text-align:center; font-size:11.5px; font-weight:700; color:var(--slate-400); padding:6px 0; text-transform:uppercase; letter-spacing:.03em; }
+  .cal-cell{ border-right:1px solid var(--line); border-bottom:1px solid var(--line); min-height:104px; padding:6px; cursor:pointer; display:flex; flex-direction:column; gap:3px; background:#fff; }
+  .cal-cell:hover{ background:#FAFBFD; }
+  .cal-cell.outside{ background:#FBFBFC; color:#C6CCD6; }
+  .cal-cell.today{ background:#FFF9EE; }
+  .cal-daynum{ font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; display:flex; justify-content:space-between; align-items:center; }
+  .cal-daynum .weekend-tag{ font-size:9px; color:var(--slate-400); font-weight:500; }
+  .cal-tag{ font-size:10px; padding:1px 6px; border-radius:5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cal-tag.shift{ background:var(--amber-dim); color:#8a5a0c; }
+  .cal-tag.leave{ background:var(--red-dim); color:#8a1f1f; }
+  .cal-more{ font-size:10px; color:var(--slate-400); font-weight:600; }
+  .legend-dot{ width:9px;height:9px;border-radius:3px;display:inline-block; }
+
+  @media (max-width:820px){
+    #sidebar{ display:none; }
+    #main{ padding:16px; }
+    .field-row{ grid-template-columns:1fr; }
+  }
+
+  /* Auth screen */
+  .auth-wrap{ min-height:100vh; width:100%; display:flex; align-items:center; justify-content:center; background:var(--navy-950); padding:20px; }
+  .auth-card{ width:100%; max-width:380px; background:#fff; border-radius:14px; padding:28px 26px; box-shadow:0 24px 70px rgba(0,0,0,.35); }
+  .auth-card .brand{ display:flex; align-items:center; gap:8px; font-weight:700; font-size:16px; margin-bottom:6px; color:var(--navy-950); }
+  .auth-card .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 3px rgba(242,169,59,.25);}
+  .auth-card .sub{ color:var(--slate-400); font-size:12.5px; margin-bottom:20px; }
+  .auth-card .btn{ width:100%; justify-content:center; margin-top:6px; }
+  .auth-error{ background:var(--red-dim); color:#8a1f1f; font-size:12.5px; padding:8px 10px; border-radius:7px; margin-bottom:12px; }
+  .auth-switch{ text-align:center; font-size:12.5px; color:var(--slate-400); margin-top:16px; }
+  .auth-switch a{ color:var(--amber); font-weight:600; cursor:pointer; text-decoration:none; }
+  .role-badge{ display:inline-block; padding:2px 8px; border-radius:100px; font-size:10.5px; font-weight:700; }
+  .role-badge.admin{ background:var(--violet-dim); color:#453a9c; }
+  .role-badge.staff{ background:var(--teal-dim); color:#0d5f57; }
+</style>
+</head>
+<body>
+<div id="authScreen" class="auth-wrap" style="display:none;"></div>
+<div id="app" style="display:none;">
+  <div id="sidebar">
+    <div class="brand"><span class="dot"></span> ศูนย์ควบคุมงาน</div>
+    <div id="nav"></div>
+    <div id="userBox" style="border-top:1px solid rgba(255,255,255,.08); margin-top:10px; padding-top:12px;"></div>
+    <div class="footnote">ข้อมูลทั้งหมดในระบบนี้ใช้ร่วมกันกับทุกคนที่เปิดหน้านี้<br><span style="opacity:.6;">Build: 2026-08-31-schedimport-v3-tzfix</span></div>
+  </div>
+  <div id="main">
+    <div class="banner" id="storageBanner">🔔 ข้อมูลในเว็บนี้เป็นข้อมูลส่วนกลาง (shared) — ทุกคนที่เปิดหน้านี้จะเห็นและแก้ไขข้อมูลเดียวกันได้</div>
+    <div id="content"></div>
+  </div>
+</div>
+
+<dialog id="dlg"></dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ---------------- storage helpers (Supabase) ---------------- */
+// 1) ไปที่ https://supabase.com สร้างโปรเจกต์ฟรี
+// 2) ไปที่ Project Settings > API แล้วคัดลอกค่า 2 อย่างมาแปะแทนที่ด้านล่างนี้
+const SUPABASE_URL = 'https://vjqcrriosqddhjtkejyl.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_L-oLa77Na9s_5iMMB8Cg7g_lfIIKy8Z';
+
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+async function loadList(key){
+  try{
+    const { data, error } = await supabaseClient
+      .from('app_data')
+      .select('value')
+      .eq('key', key)
+      .maybeSingle();
+    if(error || !data) return [];
+    return data.value || [];
+  }catch(e){ console.error('load fail', key, e); return []; }
+}
+async function saveList(key, arr){
+  try{
+    const { error } = await supabaseClient
+      .from('app_data')
+      .upsert({ key, value: arr, updated_at: new Date().toISOString() });
+    if(error) console.error('save fail', key, error);
+  }catch(e){ console.error('save fail', key, e); }
+}
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+/* ---------------- state ---------------- */
+let session = { user: null };
+let state = {
+  employees: [],
+  shifts: [],       // {id, date:'YYYY-MM-DD', employeeId, type}
+  appointments: [],  // {id, date, time, customer, phone, address, employeeId, status, note, submittedBy}
+  otEntries: [],     // {id, employeeId, date, hours, reason}
+  leaves: [],        // {id, employeeId, type, start, end, note, status}
+  planworks: [],     // {id, date, dnType, dnTime, planNo, detail, node, reference, assignBy, workType, vendor, remark, remarkMail}
+  users: [],         // {id, username, passwordHash, name, role: 'admin'|'staff'}
+  route: 'overview',
+  weekStart: startOfWeek(new Date()),
+  leaveMonth: new Date().getMonth(),
+  leaveYear: new Date().getFullYear(),
+  calMonth: new Date().getMonth(),
+  calYear: new Date().getFullYear(),
+  otMonth: new Date().getMonth(),
+  otYear: new Date().getFullYear(),
+  apptFilter: 'all',
+  planworkSearch: '',
+  reportPeriod: 'month',
+  reportRef: fmtDate(new Date()),
+};
+
+function dmy(iso){
+  if(!iso) return '-';
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function startOfWeek(d){
+  const nd = new Date(d);
+  const day = (nd.getDay()+6)%7; // Monday=0
+  nd.setDate(nd.getDate()-day);
+  nd.setHours(0,0,0,0);
+  return nd;
+}
+function fmtDate(d){
+  const p = n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+function thaiDate(iso){
+  const d = new Date(iso+'T00:00:00');
+  const days=['อา','จ','อ','พ','พฤ','ศ','ส'];
+  const months=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
+}
+function empName(id){ const e = state.employees.find(x=>x.id===id); return e? e.name : '(ไม่ระบุ)'; }
+function getOnDutyNamesForDate(dateIso, roleFilter){
+  const shifts = state.shifts.filter(s=>s.date===dateIso);
+  if(roleFilter){
+    // shift.note carries the role tag set during schedule import (e.g. "MPLS", "TI", "VOICE and DID")
+    const matched = shifts.filter(s=> (s.note||'').toUpperCase().includes(roleFilter.toUpperCase()));
+    if(matched.length) return matched.map(s=>empName(s.employeeId)).filter(Boolean);
+    // fall back to everyone on duty that day if nobody has the role tagged (e.g. manually-added shifts)
+  }
+  return shifts.map(s=>empName(s.employeeId)).filter(Boolean);
+}
+// NOTE: intentionally not using SheetJS's cellDates Date objects for imports — its date
+// conversion has been found to shift by a day depending on the browser's local timezone
+// (e.g. under Asia/Bangkok). All Excel date cells are instead read as raw serial numbers
+// and converted with excelSerialToISO (pure integer math, timezone-independent).
+function daysInMonth(y,m){ return new Date(y,m+1,0).getDate(); }
+
+// approval workflow status — independent from whether the job itself is finished
+const APPROVAL_STATUS = [
+  {v:'pending', label:'รอดำเนินการ', cls:'pending'},
+  {v:'approved', label:'อนุมัติแล้ว', cls:'confirmed'},
+  {v:'cancelled', label:'ยกเลิก', cls:'cancelled'},
+];
+// completion (work-done) status — tracked separately from approval
+const DONE_STATUS = [
+  {v:'not_done', label:'ยังไม่เสร็จ', cls:'pending'},
+  {v:'done', label:'เสร็จสิ้น', cls:'done'},
+];
+// reads approvalStatus/doneStatus when present; falls back to the old combined
+// `status` field so appointments saved before this split still display correctly
+function apptApprovalStatus(a){
+  if(a.approvalStatus) return a.approvalStatus;
+  if(a.status==='cancelled') return 'cancelled';
+  if(a.status==='pending' || !a.status) return 'pending';
+  return 'approved'; // legacy 'confirmed' or 'done' both implied an approved appointment
+}
+function apptDoneStatus(a){
+  if(a.doneStatus) return a.doneStatus;
+  return a.status==='done' ? 'done' : 'not_done';
+}
+const LEAVE_TYPES = ['ลาป่วย','ลากิจ','ลาพักร้อน','ลาคลอด','อื่นๆ'];
+const LEAVE_COLORS = {'ลาป่วย':'#DA5B5B','ลากิจ':'#F2A93B','ลาพักร้อน':'#159E93','ลาคลอด':'#6E62C9','อื่นๆ':'#8A97AC'};
+
+const ICONS = {
+  overview:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
+  schedule:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>',
+  appt:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.2-9.3-9.3A5.4 5.4 0 0112 5.6a5.4 5.4 0 019.3 6.1C19 15.8 12 21 12 21z"/><circle cx="12" cy="10" r="2.2"/></svg>',
+  ot:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  leave:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z" opacity="0"/><path d="M6 3v3M18 3v3M4 9h16M5 6h14a1 1 0 011 1v12a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1z"/><path d="M9 14l2 2 4-4"/></svg>',
+  team:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6"/><circle cx="17" cy="9" r="2.4"/><path d="M17.5 14.2c2.5.5 4.5 2.4 4.5 5.3"/></svg>',
+  calendar:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><circle cx="8" cy="14" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="14" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>',
+  planwork:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 3v3h8V3"/><path d="M8 11h8M8 15h8M8 19h5"/></svg>',
+  settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009.1 19.6a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9.1a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>',
+  users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="3.2"/><circle cx="17" cy="8" r="2.6"/><path d="M2.5 20c0-3.4 2.5-6.2 5.5-6.2s5.5 2.8 5.5 6.2"/><path d="M14.5 14.3c2.6.3 4.8 2.7 4.8 5.7"/></svg>',
+  report:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19h16"/><rect x="6" y="10" width="3" height="7"/><rect x="11" y="6" width="3" height="11"/><rect x="16" y="13" width="3" height="4"/></svg>',
+};
+
+const NAV = [
+  {id:'overview', label:'ภาพรวม'},
+  {id:'calendar', label:'ปฏิทิน'},
+  {id:'report', label:'รายงาน'},
+  {id:'schedule', label:'ตารางเวร'},
+  {id:'appt', label:'นัดหมายติดตั้ง'},
+  {id:'planwork', label:'Planwork'},
+  {id:'ot', label:'ชั่วโมง OT'},
+  {id:'leave', label:'ตารางคนลา'},
+  {id:'team', label:'รายชื่อทีม'},
+  {id:'users', label:'ผู้ใช้งาน', adminOnly:true},
+];
+
+// ช่างหน้างาน (field technician role) only ever sees these tabs
+const TECH_ALLOWED_ROUTES = ['calendar', 'appt'];
+function getAllowedRouteIds(){
+  if(session.user && session.user.role==='admin') return NAV.map(n=>n.id);
+  return TECH_ALLOWED_ROUTES;
+}
+
+/* ---------------- init ---------------- */
+async function sha256(text){
+  const enc = new TextEncoder().encode(text);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(hashBuffer)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function init(){
+  const [employees, shifts, appointments, otEntries, leaves, planworks, users] = await Promise.all([
+    loadList('employees'), loadList('shifts'), loadList('appointments'), loadList('ot-entries'), loadList('leaves'), loadList('planworks'), loadList('users')
+  ]);
+  state.employees = employees;
+  state.shifts = shifts;
+  state.appointments = appointments;
+  state.otEntries = otEntries;
+  state.leaves = leaves;
+  state.planworks = planworks;
+  state.users = users;
+
+  if(state.employees.length===0){
+    state.employees = [
+      {id:uid(), name:'Kittisak', phone:'084-075-3178', email:'kittisak.paengphol@ericsson.com'},
+      {id:uid(), name:'Nittaya', phone:'096-959-4566', email:'nittaya.khlaypong@ericsson.com'},
+      {id:uid(), name:'Mongkol', phone:'083-549-6814', email:'mongkol.muangme@ericsson.com'},
+      {id:uid(), name:'Worakit', phone:'095-369-9316', email:'worakit.sangwiwatcharoen@ericsson.com'},
+      {id:uid(), name:'Weeraphong', phone:'095-960-7270', email:'weeraphong.kongpetmanee@ericsson.com'},
+      {id:uid(), name:'Surasak', phone:'095-368-1865', email:'surasak.mitpratham@ericsson.com'},
+      {id:uid(), name:'Seksan', phone:'095-207-3483', email:'seksan.koetchan@ericsson.com'},
+      {id:uid(), name:'Surachat', phone:'095-205-5419', email:'surachat.buakhem@ericsson.com'},
+      {id:uid(), name:'Budsayamard', phone:'095-205-0053', email:'budsayamard.yimcharoen@ericsson.com'},
+      {id:uid(), name:'Panya', phone:'095-205-6641', email:'panya.yamoat@ericsson.com'},
+      {id:uid(), name:'Pathai', phone:'095-364-5323', email:'pathai.banchawut@ericsson.com'},
+    ];
+    await saveList('employees', state.employees);
+  }
+
+  // seed the designated admin account on first run (no public self-serve admin creation)
+  if(state.users.length===0){
+    const bootstrapAdmin = {
+      id: uid(),
+      username: 'vdes2740',
+      name: 'Worakit Sangwiwatcharoen',
+      email: 'worakit.sangwiwatcharoen@ericsson.com',
+      passwordHash: 'f835fa034d0b4ba2ff00106905c19e27298a12fb7b80cf9eb843f978b3285e78', // sha256("Worsang@B211031")
+      role: 'admin',
+      approved: true,
+    };
+    state.users = [bootstrapAdmin];
+    await saveList('users', state.users);
+  }
+
+  // try to restore a saved session (personal, per browser/device)
+  try{
+    const raw = localStorage.getItem('my-session');
+    if(raw){
+      const sess = JSON.parse(raw);
+      const u = state.users.find(x=>x.id===sess.userId);
+      if(u) session.user = u;
+    }
+  }catch(e){ /* no saved session */ }
+
+  if(!session.user){
+    showAuthScreen('login');
+  } else {
+    enterApp();
+  }
+}
+
+/* ---------------- auth screens ---------------- */
+function showAuthScreen(mode, msg, msgType){
+  document.getElementById('app').style.display = 'none';
+  const el = document.getElementById('authScreen');
+  el.style.display = 'flex';
+  if(mode==='register') el.innerHTML = registerScreenHtml(msg, msgType);
+  else el.innerHTML = loginScreenHtml(msg, msgType);
+  bindAuthEvents(mode);
+}
+
+function enterApp(){
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  renderNav();
+  renderContent();
+}
+
+function authMsgHtml(msg, msgType){
+  if(!msg) return '';
+  if(msgType==='success') return `<div class="auth-error" style="background:var(--green-dim); color:#265c39;">${msg}</div>`;
+  return `<div class="auth-error">${msg}</div>`;
+}
+
+function loginScreenHtml(msg, msgType){
+  return `
+    <div class="auth-card">
+      <div class="brand"><span class="dot"></span> ศูนย์ควบคุมงาน</div>
+      <div class="sub">เข้าสู่ระบบเพื่อจัดการเวร นัดหมาย OT และการลา</div>
+      ${authMsgHtml(msg, msgType)}
+      <div class="field"><label>ชื่อผู้ใช้ (Username)</label><input id="li_username" placeholder="ชื่อผู้ใช้ของคุณ"></div>
+      <div class="field"><label>รหัสผ่าน</label><input type="password" id="li_pass" placeholder="รหัสผ่าน"></div>
+      <button class="btn btn-amber" id="li_submit">เข้าสู่ระบบ</button>
+      <div class="auth-switch">ยังไม่มีบัญชี? <a id="goRegister">ลงทะเบียนใช้งาน</a></div>
+    </div>
+  `;
+}
+function registerScreenHtml(msg, msgType){
+  return `
+    <div class="auth-card">
+      <div class="brand"><span class="dot"></span> ศูนย์ควบคุมงาน</div>
+      <div class="sub">ลงทะเบียนเข้าใช้เว็บนี้ — บัญชีต้องรอผู้ดูแลระบบอนุมัติก่อนจึงจะเข้าใช้งานได้</div>
+      ${authMsgHtml(msg, msgType)}
+      <div class="field"><label>ชื่อ-นามสกุล</label><input id="rg_name" placeholder="ชื่อ-นามสกุล"></div>
+      <div class="field"><label>ชื่อผู้ใช้ (Username)</label><input id="rg_username" placeholder="ตั้งชื่อผู้ใช้สำหรับล็อกอิน"></div>
+      <div class="field"><label>Email</label><input type="email" id="rg_email" placeholder="name@example.com"></div>
+      <div class="field"><label>สิทธิ์การใช้งานที่ต้องการ</label>
+        <select id="rg_role">
+          <option value="staff">ช่างหน้างาน</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="field"><label>รหัสผ่าน</label><input type="password" id="rg_pass" placeholder="อย่างน้อย 6 ตัวอักษร"></div>
+      <div class="field"><label>ยืนยันรหัสผ่าน</label><input type="password" id="rg_pass2" placeholder="พิมพ์รหัสผ่านอีกครั้ง"></div>
+      <button class="btn btn-amber" id="rg_submit">ลงทะเบียน</button>
+      <div class="auth-switch">มีบัญชีอยู่แล้ว? <a id="goLogin">เข้าสู่ระบบ</a></div>
+    </div>
+  `;
+}
+
+function bindAuthEvents(mode){
+  if(mode==='register'){
+    document.getElementById('goLogin').onclick = ()=> showAuthScreen('login');
+    document.getElementById('rg_submit').onclick = async ()=>{
+      const name = document.getElementById('rg_name').value.trim();
+      const username = document.getElementById('rg_username').value.trim().toLowerCase();
+      const email = document.getElementById('rg_email').value.trim();
+      const role = document.getElementById('rg_role').value === 'admin' ? 'admin' : 'staff';
+      const pass = document.getElementById('rg_pass').value;
+      const pass2 = document.getElementById('rg_pass2').value;
+      if(!name || !username || !email || !pass){ showAuthScreen('register','กรุณากรอกข้อมูลให้ครบ'); return; }
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ showAuthScreen('register','กรุณากรอก Email ให้ถูกต้อง'); return; }
+      if(pass.length<6){ showAuthScreen('register','รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'); return; }
+      if(pass!==pass2){ showAuthScreen('register','รหัสผ่านทั้งสองช่องไม่ตรงกัน'); return; }
+      if(state.users.some(u=>u.username.toLowerCase()===username)){ showAuthScreen('register','มีชื่อผู้ใช้นี้อยู่แล้ว กรุณาตั้งชื่ออื่น'); return; }
+      const passwordHash = await sha256(pass);
+      const user = {id:uid(), username, name, email, passwordHash, role, approved:false};
+      state.users.push(user);
+      await saveList('users', state.users);
+      showAuthScreen('login', 'ลงทะเบียนสำเร็จ! กรุณารอผู้ดูแลระบบอนุมัติบัญชีก่อนเข้าสู่ระบบ', 'success');
+    };
+  } else {
+    document.getElementById('goRegister').onclick = ()=> showAuthScreen('register');
+    document.getElementById('li_submit').onclick = async ()=>{
+      const username = document.getElementById('li_username').value.trim().toLowerCase();
+      const pass = document.getElementById('li_pass').value;
+      if(!username || !pass){ showAuthScreen('login','กรุณากรอกชื่อผู้ใช้และรหัสผ่าน'); return; }
+      const passwordHash = await sha256(pass);
+      const user = state.users.find(u=> u.username.toLowerCase()===username && u.passwordHash===passwordHash);
+      if(!user){ showAuthScreen('login','ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'); return; }
+      if(user.approved===false){ showAuthScreen('login','บัญชีนี้ยังไม่ได้รับการอนุมัติจากผู้ดูแลระบบ กรุณาติดต่อผู้ดูแลระบบ'); return; }
+      session.user = user;
+      try{ localStorage.setItem('my-session', JSON.stringify({userId:user.id})); }catch(e){}
+      enterApp();
+    };
+    // allow Enter key to submit
+    const passField = document.getElementById('li_pass');
+    if(passField) passField.addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('li_submit').click(); });
+  }
+}
+
+async function logout(){
+  session.user = null;
+  try{ localStorage.removeItem('my-session'); }catch(e){}
+  showAuthScreen('login');
+}
+
+function renderNav(){
+  const nav = document.getElementById('nav');
+  const allowed = getAllowedRouteIds();
+  const items = NAV.filter(n=> allowed.includes(n.id));
+  nav.innerHTML = items.map(n=>`
+    <div class="nav-item ${state.route===n.id?'active':''}" data-route="${n.id}">
+      ${ICONS[n.id]} <span>${n.label}</span>
+    </div>`).join('');
+  nav.querySelectorAll('.nav-item').forEach(el=>{
+    el.addEventListener('click', ()=>{ state.route = el.dataset.route; renderNav(); renderContent(); });
+  });
+
+  const userBox = document.getElementById('userBox');
+  if(userBox && session.user){
+    userBox.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:4px 8px;">
+        <div>
+          <div style="color:#fff; font-size:13px; font-weight:600;">${session.user.name}</div>
+          <span class="role-badge ${session.user.role}">${session.user.role==='admin'?'ผู้ดูแลระบบ':'ช่างหน้างาน'}</span>
+        </div>
+        <button class="icon-btn" id="logoutBtn" title="ออกจากระบบ" style="color:var(--slate-300);">⏻</button>
+      </div>
+    `;
+    const lb = document.getElementById('logoutBtn');
+    if(lb) lb.onclick = ()=>{ if(confirm('ออกจากระบบใช่หรือไม่?')) logout(); };
+  }
+}
+
+function go(route){ state.route = route; renderNav(); renderContent(); }
+
+function renderContent(){
+  const c = document.getElementById('content');
+  const allowed = getAllowedRouteIds();
+  if(!allowed.includes(state.route)){ state.route = allowed[0]; }
+
+  if(state.route==='overview') c.innerHTML = viewOverview();
+  else if(state.route==='calendar') c.innerHTML = viewCalendar();
+  else if(state.route==='report') c.innerHTML = viewReport();
+  else if(state.route==='schedule') c.innerHTML = viewSchedule();
+  else if(state.route==='appt') c.innerHTML = viewAppt();
+  else if(state.route==='planwork') c.innerHTML = viewPlanwork();
+  else if(state.route==='ot') c.innerHTML = viewOT();
+  else if(state.route==='leave') c.innerHTML = viewLeave();
+  else if(state.route==='team') c.innerHTML = viewTeam();
+  else if(state.route==='users') c.innerHTML = viewUsers();
+  bindContentEvents();
+}
+
+/* ================= OVERVIEW ================= */
+function viewOverview(){
+  const today = fmtDate(new Date());
+  const todayShifts = state.shifts.filter(s=>s.date===today);
+  const todayAppts = state.appointments.filter(a=>a.date===today);
+  const onLeaveToday = state.leaves.filter(l=> l.start<=today && l.end>=today);
+  const pendingAppts = state.appointments.filter(a=>apptApprovalStatus(a)==='pending').length;
+
+  return `
+    <div class="topbar">
+      <div><h1>ภาพรวมวันนี้</h1><div class="sub mono">${thaiDate(today)}</div></div>
+    </div>
+    <div class="grid-stats">
+      <div class="stat-card amber"><div class="n">${todayShifts.length}</div><div class="l">คนเข้าเวรวันนี้</div></div>
+      <div class="stat-card teal"><div class="n">${todayAppts.length}</div><div class="l">นัดหมายติดตั้งวันนี้</div></div>
+      <div class="stat-card violet"><div class="n">${pendingAppts}</div><div class="l">นัดหมายรอดำเนินการ</div></div>
+      <div class="stat-card red"><div class="n">${onLeaveToday.length}</div><div class="l">คนลาวันนี้</div></div>
+    </div>
+
+    <div class="card">
+      <h3>เวรวันนี้ <span class="hint">${thaiDate(today)}</span></h3>
+      ${todayShifts.length? `<table><thead><tr><th>พนักงาน</th><th>กะ</th></tr></thead><tbody>
+        ${todayShifts.map(s=>`<tr><td>${empName(s.employeeId)}</td><td>${shiftBadge()}</td></tr>`).join('')}
+      </tbody></table>` : `<div class="empty">ยังไม่มีการจัดเวรวันนี้</div>`}
+    </div>
+
+    <div class="card">
+      <h3>นัดหมายติดตั้งวันนี้</h3>
+      ${todayAppts.length? `<table><thead><tr><th>เวลา</th><th>Circuit</th><th>ช่าง</th><th>สถานะ</th></tr></thead><tbody>
+        ${todayAppts.map(a=>`<tr><td class="mono">${a.time||'-'}</td><td>${a.customer}</td><td>${a.technicianName||empName(a.employeeId)}</td><td>${apptApprovalBadge(a)} ${apptDoneBadge(a)}</td></tr>`).join('')}
+      </tbody></table>` : `<div class="empty">ไม่มีนัดหมายวันนี้</div>`}
+    </div>
+
+    <div class="card">
+      <h3>คนลาวันนี้</h3>
+      ${onLeaveToday.length? `<table><thead><tr><th>พนักงาน</th><th>ประเภท</th><th>ช่วงวันที่</th></tr></thead><tbody>
+        ${onLeaveToday.map(l=>`<tr><td>${empName(l.employeeId)}</td><td><span class="badge leavetype">${l.type}</span></td><td class="mono">${l.start} - ${l.end}</td></tr>`).join('')}
+      </tbody></table>` : `<div class="empty">วันนี้ไม่มีใครลา</div>`}
+    </div>
+  `;
+}
+function shiftBadge(){
+  return `<span class="badge morning">อยู่เวร</span>`;
+}
+function apptApprovalBadge(a){
+  const v = apptApprovalStatus(a);
+  const t = APPROVAL_STATUS.find(s=>s.v===v) || APPROVAL_STATUS[0];
+  return `<span class="badge ${t.cls}">${t.label}</span>`;
+}
+function apptDoneBadge(a){
+  const v = apptDoneStatus(a);
+  const t = DONE_STATUS.find(s=>s.v===v) || DONE_STATUS[0];
+  return `<span class="badge ${t.cls}">${t.label}</span>`;
+}
+
+/* ================= CALENDAR ================= */
+function dayInfo(iso){
+  const onDuty = state.shifts.filter(s=>s.date===iso);
+  const onLeave = state.leaves.filter(l=> l.start<=iso && l.end>=iso);
+  return {onDuty, onLeave};
+}
+
+function viewCalendar(){
+  const y = state.calYear, m = state.calMonth;
+  const monthNames=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  const dowLabels=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+  const first = new Date(y,m,1);
+  const firstDow = first.getDay(); // Sunday=0
+  const nd = daysInMonth(y,m);
+  const todayIso = fmtDate(new Date());
+
+  const cells = [];
+  // leading blanks from previous month
+  const prevMonthDays = daysInMonth(m===0?y-1:y, m===0?11:m-1);
+  for(let i=firstDow-1;i>=0;i--){
+    cells.push({dayNum: prevMonthDays-i, outside:true, iso:null});
+  }
+  for(let d=1; d<=nd; d++){
+    cells.push({dayNum:d, outside:false, iso:`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`});
+  }
+  while(cells.length % 7 !== 0){
+    cells.push({dayNum: cells.length, outside:true, iso:null});
+  }
+
+  const cellsHtml = cells.map(c=>{
+    if(c.outside) return `<div class="cal-cell outside"><div class="cal-daynum">${c.dayNum}</div></div>`;
+    const {onDuty, onLeave} = dayInfo(c.iso);
+    const isToday = c.iso===todayIso;
+    const dow = new Date(c.iso+'T00:00:00').getDay();
+    const isWeekend = dow===0||dow===6;
+    const tags = [];
+    onDuty.slice(0,2).forEach(s=> tags.push(`<div class="cal-tag shift">🛠 ${empName(s.employeeId)} (Standby)</div>`));
+    onLeave.slice(0,2).forEach(l=> tags.push(`<div class="cal-tag leave" style="background:${LEAVE_COLORS[l.type]}22;color:${LEAVE_COLORS[l.type]};">🌴 ${empName(l.employeeId)} (${l.type} ${dmy(l.start)}-${dmy(l.end)}${l.timeStart? ` ${l.timeStart}-${l.timeEnd}`:''})</div>`));
+    const shown = onDuty.slice(0,2).length + onLeave.slice(0,2).length;
+    const total = onDuty.length + onLeave.length;
+    const more = total>shown ? `<div class="cal-more">+${total-shown} เพิ่มเติม</div>` : '';
+    return `<div class="cal-cell ${isToday?'today':''}" data-day="${c.iso}">
+      <div class="cal-daynum">${c.dayNum} ${isWeekend?'<span class="weekend-tag">หยุด</span>':''}</div>
+      ${tags.join('')}${more}
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="topbar">
+      <div><h1>ปฏิทิน</h1><div class="sub">ภาพรวมคนอยู่เวรและคนลาในแต่ละวัน คลิกวันที่เพื่อดูรายละเอียด</div></div>
+      <div class="weeknav">
+        <button class="btn btn-ghost btn-sm" id="prevCalMonth">←</button>
+        <div class="lbl mono">${monthNames[m]} ${y+543}</div>
+        <button class="btn btn-ghost btn-sm" id="nextCalMonth">→</button>
+        <button class="btn btn-ghost btn-sm" id="thisCalMonth">เดือนนี้</button>
+      </div>
+    </div>
+    <div class="card" style="padding:14px; overflow-x:auto;">
+      <div style="min-width:640px;">
+        <div class="cal-head">${dowLabels.map(d=>`<div>${d}</div>`).join('')}</div>
+        <div class="cal-grid">${cellsHtml}</div>
+      </div>
+    </div>
+    <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--slate-400); margin-top:6px;">
+      <div style="display:flex;align-items:center;gap:6px;"><span class="legend-dot" style="background:var(--amber);"></span>🛠 มีคนอยู่เวร</div>
+      <div style="display:flex;align-items:center;gap:6px;"><span class="legend-dot" style="background:var(--red);"></span>🌴 มีคนลา</div>
+    </div>
+  `;
+}
+
+function openDayDialog(iso){
+  const {onDuty, onLeave} = dayInfo(iso);
+  const dlg = document.getElementById('dlg');
+  dlg.innerHTML = `
+    <div class="dialog-head"><h3>${thaiDate(iso)}</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+    <div class="dialog-body">
+      <h3 style="font-size:13px;">อยู่เวรวันนี้ <span class="hint">${onDuty.length} คน</span></h3>
+      ${onDuty.length? `<table><tbody>${onDuty.map(s=>`<tr><td>${empName(s.employeeId)}</td><td style="text-align:right;">${shiftBadge()}</td></tr>`).join('')}</tbody></table>` : `<div class="empty" style="padding:14px;">ไม่มีใครอยู่เวร</div>`}
+      <h3 style="font-size:13px; margin-top:16px;">ลาวันนี้ <span class="hint">${onLeave.length} คน</span></h3>
+      ${onLeave.length? `<table><tbody>${onLeave.map(l=>`<tr><td>${empName(l.employeeId)}</td><td style="text-align:right;"><span class="badge leavetype" style="background:${LEAVE_COLORS[l.type]}22;color:${LEAVE_COLORS[l.type]};">${l.type}${l.timeStart? ` ${l.timeStart}-${l.timeEnd}`:''}</span></td></tr>`).join('')}</tbody></table>` : `<div class="empty" style="padding:14px;">ไม่มีใครลา</div>`}
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-ghost" id="goSchedule">ไปตารางเวร</button>
+      <button class="btn btn-amber" id="dlgCancel">ปิด</button>
+    </div>
+  `;
+  dlg.showModal();
+  dlg.querySelector('#dlgClose').onclick=()=>dlg.close();
+  dlg.querySelector('#dlgCancel').onclick=()=>dlg.close();
+  dlg.querySelector('#goSchedule').onclick=()=>{
+    dlg.close();
+    state.weekStart = startOfWeek(new Date(iso+'T00:00:00'));
+    go('schedule');
+  };
+}
+
+/* ================= REPORT ================= */
+const REPORT_PERIODS = [
+  {v:'day', label:'วัน'},
+  {v:'week', label:'สัปดาห์'},
+  {v:'month', label:'เดือน'},
+  {v:'year', label:'ปี'},
+];
+const MONTH_NAMES_TH = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+
+function overlapDays(aStart, aEnd, bStart, bEnd){
+  const s = aStart > bStart ? aStart : bStart;
+  const e = aEnd < bEnd ? aEnd : bEnd;
+  if(s > e) return 0;
+  const d1 = new Date(s+'T00:00:00'), d2 = new Date(e+'T00:00:00');
+  return Math.round((d2-d1)/86400000) + 1;
+}
+
+function getReportRange(){
+  const period = state.reportPeriod;
+  const ref = new Date(state.reportRef+'T00:00:00');
+  const p = n=>String(n).padStart(2,'0');
+  if(period==='day'){
+    const iso = fmtDate(ref);
+    return {start:iso, end:iso, label: thaiDate(iso)};
+  }
+  if(period==='week'){
+    const start = startOfWeek(ref);
+    const end = new Date(start); end.setDate(end.getDate()+6);
+    return {start:fmtDate(start), end:fmtDate(end), label:`${thaiDate(fmtDate(start))} – ${thaiDate(fmtDate(end))}`};
+  }
+  if(period==='year'){
+    const y = ref.getFullYear();
+    return {start:`${y}-01-01`, end:`${y}-12-31`, label:`ปี ${y+543}`};
+  }
+  // month (default)
+  const y = ref.getFullYear(), m = ref.getMonth();
+  return {
+    start: `${y}-${p(m+1)}-01`,
+    end: `${y}-${p(m+1)}-${p(daysInMonth(y,m))}`,
+    label: `${MONTH_NAMES_TH[m]} ${y+543}`
+  };
+}
+
+function shiftReportRef(delta){
+  const ref = new Date(state.reportRef+'T00:00:00');
+  const period = state.reportPeriod;
+  if(period==='day') ref.setDate(ref.getDate()+delta);
+  else if(period==='week') ref.setDate(ref.getDate()+delta*7);
+  else if(period==='year') ref.setFullYear(ref.getFullYear()+delta);
+  else ref.setMonth(ref.getMonth()+delta);
+  state.reportRef = fmtDate(ref);
+}
+
+function computeReportData(){
+  const {start, end, label} = getReportRange();
+
+  const shiftsInRange = state.shifts.filter(s=> s.date>=start && s.date<=end);
+  const shiftTotals = {};
+  shiftsInRange.forEach(s=>{
+    shiftTotals[s.employeeId] = (shiftTotals[s.employeeId]||0) + 1;
+  });
+
+  const apptsInRange = state.appointments.filter(a=> a.date>=start && a.date<=end);
+  const apptCounts = {};
+  APPROVAL_STATUS.forEach(s=> apptCounts[s.v] = apptsInRange.filter(a=>apptApprovalStatus(a)===s.v).length);
+  const apptDoneCount = apptsInRange.filter(a=> apptDoneStatus(a)==='done').length;
+
+  const pwInRange = state.planworks.filter(p=> p.date>=start && p.date<=end);
+  const pwByType = {};
+  pwInRange.forEach(p=>{ const k = p.workType || 'ไม่ระบุ'; pwByType[k] = (pwByType[k]||0) + 1; });
+
+  const otInRange = state.otEntries.filter(o=> o.date>=start && o.date<=end);
+  const otTotals = {};
+  const otWeightedTotals = {};
+  otInRange.forEach(o=>{
+    const mult = Number(o.multiplier||1);
+    otTotals[o.employeeId] = (otTotals[o.employeeId]||0) + Number(o.hours||0);
+    otWeightedTotals[o.employeeId] = (otWeightedTotals[o.employeeId]||0) + Number(o.hours||0)*mult;
+  });
+  const otSumAll = otInRange.reduce((s,o)=> s + Number(o.hours||0), 0);
+  const otWeightedSumAll = otInRange.reduce((s,o)=> s + Number(o.hours||0)*Number(o.multiplier||1), 0);
+
+  const leavesInRange = state.leaves.filter(l=> l.start<=end && l.end>=start);
+  const leaveDaysByEmp = {};
+  const leaveDaysByType = {};
+  let totalLeaveDays = 0;
+  leavesInRange.forEach(l=>{
+    const days = overlapDays(l.start, l.end, start, end);
+    leaveDaysByEmp[l.employeeId] = (leaveDaysByEmp[l.employeeId]||0) + days;
+    leaveDaysByType[l.type] = (leaveDaysByType[l.type]||0) + days;
+    totalLeaveDays += days;
+  });
+
+  return {
+    start, end, label,
+    shiftsInRange, shiftTotals,
+    apptsInRange, apptCounts, apptDoneCount,
+    pwInRange, pwByType,
+    otInRange, otTotals, otSumAll, otWeightedTotals, otWeightedSumAll,
+    leavesInRange, leaveDaysByEmp, leaveDaysByType, totalLeaveDays,
+  };
+}
+
+function viewReport(){
+  const {start, end, label, shiftsInRange, shiftTotals, apptsInRange, apptCounts, apptDoneCount, pwInRange, pwByType, otTotals, otSumAll, otWeightedTotals, leaveDaysByEmp, leaveDaysByType, totalLeaveDays} = computeReportData();
+
+  return `
+    <div class="topbar">
+      <div><h1>รายงานภาพรวม</h1><div class="sub">สรุปข้อมูลเวร นัดหมาย Planwork OT และการลา ตามช่วงเวลาที่เลือก</div></div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-ghost" id="exportExcelReport">⬇ ส่งออก Excel</button>
+        <button class="btn btn-amber" id="exportPptxReport">⬇ ส่งออก PowerPoint</button>
+      </div>
+    </div>
+    <div id="reportExportStatus"></div>
+
+    <div class="pill-tabs">
+      ${REPORT_PERIODS.map(p=>`<div class="pill-tab ${state.reportPeriod===p.v?'active':''}" data-rp="${p.v}">${p.label}</div>`).join('')}
+    </div>
+    <div class="weeknav" style="margin-bottom:16px;">
+      <button class="btn btn-ghost btn-sm" id="repPrev">←</button>
+      <div class="lbl mono">${label}</div>
+      <button class="btn btn-ghost btn-sm" id="repNext">→</button>
+      <button class="btn btn-ghost btn-sm" id="repNow">ปัจจุบัน</button>
+    </div>
+
+    <div class="grid-stats">
+      <div class="stat-card amber"><div class="n">${shiftsInRange.length}</div><div class="l">กะที่จัดทั้งหมด</div></div>
+      <div class="stat-card teal"><div class="n">${apptsInRange.length}</div><div class="l">นัดหมายติดตั้ง</div></div>
+      <div class="stat-card violet"><div class="n">${pwInRange.length}</div><div class="l">Planwork</div></div>
+      <div class="stat-card amber"><div class="n">${otSumAll.toFixed(1)}</div><div class="l">ชั่วโมง OT รวม</div></div>
+      <div class="stat-card red"><div class="n">${totalLeaveDays}</div><div class="l">วันลารวม (วัน)</div></div>
+    </div>
+
+    <div class="card">
+      <h3>สรุปตารางเวร <span class="hint">${thaiDate(start)} – ${thaiDate(end)}</span></h3>
+      ${state.employees.length? `
+      <table>
+        <thead><tr><th>พนักงาน</th><th>จำนวนวันอยู่เวร</th></tr></thead>
+        <tbody>
+          ${state.employees.map(e=>{
+            const total = shiftTotals[e.id] || 0;
+            return `<tr><td>${e.name}</td><td class="mono" style="font-weight:700;">${total}</td></tr>`;
+          }).join('')}
+        </tbody>
+      </table>` : `<div class="empty">ยังไม่มีพนักงานในระบบ</div>`}
+    </div>
+
+    <div class="card">
+      <h3>สรุปนัดหมายติดตั้ง</h3>
+      <table>
+        <thead><tr>${APPROVAL_STATUS.map(s=>`<th>${s.label}</th>`).join('')}<th>เสร็จสิ้นแล้ว</th><th>รวม</th></tr></thead>
+        <tbody><tr>${APPROVAL_STATUS.map(s=>`<td class="mono">${apptCounts[s.v]}</td>`).join('')}<td class="mono">${apptDoneCount}</td><td class="mono" style="font-weight:700;">${apptsInRange.length}</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>สรุป Planwork <span class="hint">แยกตาม Work Type</span></h3>
+      ${pwInRange.length? `
+      <table>
+        <thead><tr><th>Work Type</th><th>จำนวน</th></tr></thead>
+        <tbody>${Object.entries(pwByType).map(([k,v])=>`<tr><td>${k}</td><td class="mono">${v}</td></tr>`).join('')}</tbody>
+      </table>` : `<div class="empty">ไม่มี Planwork ในช่วงเวลานี้</div>`}
+    </div>
+
+    <div class="card">
+      <h3>สรุปชั่วโมง OT <span class="hint">รวม ${otSumAll.toFixed(1)} ชม.</span></h3>
+      ${state.employees.length? `
+      <table>
+        <thead><tr><th>พนักงาน</th><th>ชั่วโมง OT</th><th>ชั่วโมงเทียบเท่า (คูณแรง)</th></tr></thead>
+        <tbody>${state.employees.map(e=>`<tr><td>${e.name}</td><td class="mono" style="font-weight:700;">${(otTotals[e.id]||0).toFixed(1)}</td><td class="mono" style="font-weight:700; color:var(--amber);">${(otWeightedTotals[e.id]||0).toFixed(1)}</td></tr>`).join('')}</tbody>
+      </table>` : `<div class="empty">ยังไม่มีพนักงานในระบบ</div>`}
+    </div>
+
+    <div class="card">
+      <h3>สรุปวันลา <span class="hint">รวม ${totalLeaveDays} วัน</span></h3>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div>
+          <div style="font-size:12px; font-weight:700; color:var(--slate-400); margin-bottom:8px;">แยกตามพนักงาน</div>
+          ${state.employees.length? `<table><tbody>${state.employees.map(e=>`<tr><td>${e.name}</td><td class="mono" style="text-align:right; font-weight:700;">${leaveDaysByEmp[e.id]||0} วัน</td></tr>`).join('')}</tbody></table>` : `<div class="empty">ไม่มีพนักงาน</div>`}
+        </div>
+        <div>
+          <div style="font-size:12px; font-weight:700; color:var(--slate-400); margin-bottom:8px;">แยกตามประเภทการลา</div>
+          ${Object.keys(leaveDaysByType).length? `<table><tbody>${LEAVE_TYPES.filter(t=>leaveDaysByType[t]).map(t=>`<tr><td><span class="badge leavetype" style="background:${LEAVE_COLORS[t]}22; color:${LEAVE_COLORS[t]};">${t}</span></td><td class="mono" style="text-align:right; font-weight:700;">${leaveDaysByType[t]} วัน</td></tr>`).join('')}</tbody></table>` : `<div class="empty">ไม่มีวันลาในช่วงนี้</div>`}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------------- Report exports (Excel / PowerPoint) ---------------- */
+async function exportReportToExcel(){
+  const statusEl = document.getElementById('reportExportStatus');
+  if(statusEl) statusEl.innerHTML = `<div class="banner">⏳ กำลังสร้างไฟล์ Excel...</div>`;
+  try{
+    const d = computeReportData();
+    const wb = XLSX.utils.book_new();
+
+    const summaryRows = [
+      ['รายงานภาพรวม', d.label],
+      ['ช่วงวันที่', `${d.start} ถึง ${d.end}`],
+      [],
+      ['หัวข้อ','จำนวน'],
+      ['กะที่จัดทั้งหมด', d.shiftsInRange.length],
+      ['นัดหมายติดตั้ง', d.apptsInRange.length],
+      ['Planwork', d.pwInRange.length],
+      ['ชั่วโมง OT รวม', Number(d.otSumAll.toFixed(1))],
+      ['วันลารวม (วัน)', d.totalLeaveDays],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryRows), 'สรุป');
+
+    const shiftRows = [['พนักงาน','จำนวนวันอยู่เวร']];
+    state.employees.forEach(e=>{
+      shiftRows.push([e.name, d.shiftTotals[e.id] || 0]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(shiftRows), 'ตารางเวร');
+
+    const apptRows = [['สถานะ','จำนวน']];
+    APPROVAL_STATUS.forEach(s=> apptRows.push([s.label, d.apptCounts[s.v]]));
+    apptRows.push(['เสร็จสิ้นแล้ว (งาน)', d.apptDoneCount]);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(apptRows), 'นัดหมายติดตั้ง');
+
+    const pwRows = [['Work Type','จำนวน']];
+    Object.entries(d.pwByType).forEach(([k,v])=> pwRows.push([k, v]));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pwRows), 'Planwork');
+
+    const otRows = [['พนักงาน','ชั่วโมง OT','ชั่วโมงเทียบเท่า (คูณแรง)']];
+    state.employees.forEach(e=> otRows.push([e.name, Number((d.otTotals[e.id]||0).toFixed(1)), Number((d.otWeightedTotals[e.id]||0).toFixed(1))]));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(otRows), 'OT');
+
+    const leaveRows = [['พนักงาน','วันลา (วัน)']];
+    state.employees.forEach(e=> leaveRows.push([e.name, d.leaveDaysByEmp[e.id]||0]));
+    leaveRows.push([]);
+    leaveRows.push(['ประเภทการลา','วันลา (วัน)']);
+    LEAVE_TYPES.filter(t=>d.leaveDaysByType[t]).forEach(t=> leaveRows.push([t, d.leaveDaysByType[t]]));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(leaveRows), 'การลา');
+
+    XLSX.writeFile(wb, `รายงาน_${d.start}_ถึง_${d.end}.xlsx`);
+    if(statusEl) statusEl.innerHTML = `<div class="banner" style="background:var(--green-dim); color:#265c39;">✅ สร้างไฟล์ Excel สำเร็จ</div>`;
+  }catch(err){
+    console.error(err);
+    if(statusEl) statusEl.innerHTML = `<div class="banner" style="background:var(--red-dim); color:#8a1f1f;">⚠ สร้างไฟล์ Excel ไม่สำเร็จ: ${err.message||err}</div>`;
+  }
+}
+
+async function exportReportToPptx(){
+  const statusEl = document.getElementById('reportExportStatus');
+  if(statusEl) statusEl.innerHTML = `<div class="banner">⏳ กำลังสร้างกราฟและไฟล์ PowerPoint...</div>`;
+  try{
+    const d = computeReportData();
+    const slides = [];
+
+    slides.push({type:'text', lines:['รายงานภาพรวม', d.label, `ช่วงวันที่ ${d.start} ถึง ${d.end}`, `สร้างเมื่อ ${dmy(fmtDate(new Date()))}`]});
+
+    const statsChart = await renderChartPng({
+      type:'bar',
+      data:{ labels:['กะ','นัดหมาย','Planwork','OT (ชม.)','ลา (วัน)'],
+        datasets:[{ label:'ภาพรวม', data:[d.shiftsInRange.length, d.apptsInRange.length, d.pwInRange.length, Number(d.otSumAll.toFixed(1)), d.totalLeaveDays], backgroundColor:['#F2A93B','#159E93','#6E62C9','#F2A93B','#DA5B5B'] }] },
+      options:{ plugins:{ legend:{display:false} } }
+    }, 900, 500);
+    slides.push({type:'image', title:'ภาพรวมตัวเลขสำคัญ', dataUrl:statsChart, wIn:9, hIn:5});
+
+    const empNames = state.employees.map(e=>e.name);
+    if(empNames.length){
+      const shiftChart = await renderChartPng({
+        type:'bar',
+        data:{ labels: empNames, datasets:[
+          {label:'จำนวนวันอยู่เวร', data: state.employees.map(e=>d.shiftTotals[e.id]||0), backgroundColor:'#F2A93B'},
+        ]},
+        options:{ plugins:{legend:{display:false}} }
+      }, 900, 500);
+      slides.push({type:'image', title:'สรุปตารางเวรตามพนักงาน', dataUrl:shiftChart, wIn:9, hIn:5});
+    }
+
+    const apptChart = await renderChartPng({
+      type:'doughnut',
+      data:{ labels: APPROVAL_STATUS.map(s=>s.label), datasets:[{ data: APPROVAL_STATUS.map(s=>d.apptCounts[s.v]), backgroundColor:['#F2A93B','#159E93','#DA5B5B'] }] },
+    }, 700, 500);
+    slides.push({type:'image', title:'นัดหมายติดตั้งตามสถานะอนุมัติ', dataUrl:apptChart, wIn:6.5, hIn:4.6});
+
+    if(Object.keys(d.pwByType).length){
+      const pwChart = await renderChartPng({
+        type:'bar',
+        data:{ labels:Object.keys(d.pwByType), datasets:[{ label:'จำนวน', data:Object.values(d.pwByType), backgroundColor:'#6E62C9' }] },
+        options:{ indexAxis:'y', plugins:{legend:{display:false}} }
+      }, 900, 500);
+      slides.push({type:'image', title:'Planwork แยกตาม Work Type', dataUrl:pwChart, wIn:9, hIn:5});
+    }
+
+    if(empNames.length){
+      const otChart = await renderChartPng({
+        type:'bar',
+        data:{ labels: empNames, datasets:[{ label:'ชั่วโมง OT', data: state.employees.map(e=>Number((d.otTotals[e.id]||0).toFixed(1))), backgroundColor:'#F2A93B' }] },
+        options:{ plugins:{legend:{display:false}} }
+      }, 900, 500);
+      slides.push({type:'image', title:'ชั่วโมง OT ตามพนักงาน', dataUrl:otChart, wIn:9, hIn:5});
+    }
+
+    const leaveTypesWithData = LEAVE_TYPES.filter(t=>d.leaveDaysByType[t]);
+    if(leaveTypesWithData.length){
+      const leaveChart = await renderChartPng({
+        type:'doughnut',
+        data:{ labels:leaveTypesWithData, datasets:[{ data:leaveTypesWithData.map(t=>d.leaveDaysByType[t]), backgroundColor:leaveTypesWithData.map(t=>LEAVE_COLORS[t]) }] },
+      }, 700, 500);
+      slides.push({type:'image', title:'วันลาแยกตามประเภท (วัน)', dataUrl:leaveChart, wIn:6.5, hIn:4.6});
+    }
+
+    if(empNames.length){
+      slides.push({type:'table', title:'วันลาแยกตามพนักงาน', headers:['พนักงาน','วันลา (วัน)'], rows: state.employees.map(e=>[e.name, String(d.leaveDaysByEmp[e.id]||0)])});
+    }
+
+    const blob = await buildPptxBlob(slides);
+    downloadBlob(blob, `รายงาน_${d.start}_ถึง_${d.end}.pptx`);
+    if(statusEl) statusEl.innerHTML = `<div class="banner" style="background:var(--green-dim); color:#265c39;">✅ สร้างไฟล์ PowerPoint สำเร็จ (${slides.length} สไลด์)</div>`;
+  }catch(err){
+    console.error(err);
+    if(statusEl) statusEl.innerHTML = `<div class="banner" style="background:var(--red-dim); color:#8a1f1f;">⚠ สร้างไฟล์ PowerPoint ไม่สำเร็จ: ${err.message||err}</div>`;
+  }
+}
+
+
+/* ================= PPTX / EXPORT ENGINE ================= */
+const PPTX_SKELETON_B64 = "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";
+const EMU_PER_IN = 914400;
+function emu(inches){ return Math.round(inches*EMU_PER_IN); }
+function escXml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function pptxTextSlideXml(lines){
+  const paras = lines.map((l,i)=>{
+    const sz = i===0 ? 3600 : 2000;
+    const b = i===0 ? ' b="1"' : '';
+    return `<a:p><a:r><a:rPr lang="en-US" sz="${sz}"${b}/><a:t>${escXml(l)}</a:t></a:r></a:p>`;
+  }).join('');
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/><p:sp><p:nvSpPr><p:cNvPr id="2" name="TextBox 1"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="${emu(0.7)}" y="${emu(0.4)}"/><a:ext cx="${emu(12)}" cy="${emu(2)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr><p:txBody><a:bodyPr wrap="square"/><a:lstStyle/>${paras}</p:txBody></p:sp></p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`;
+}
+
+function pptxTableSlideXml(title, headers, rows){
+  const ncols = headers.length;
+  const colW = emu(11.5/ncols);
+  const grid = Array(ncols).fill(`<a:gridCol w="${colW}"/>`).join('');
+  const rowXml = (cells)=> `<a:tr h="${emu(0.4)}">${cells.map(c=>`<a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>${escXml(c)}</a:t></a:r></a:p></a:txBody><a:tcPr/></a:tc>`).join('')}</a:tr>`;
+  const trs = rowXml(headers) + rows.map(r=>rowXml(r)).join('');
+  const titleXml = `<p:sp><p:nvSpPr><p:cNvPr id="2" name="TextBox 1"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="${emu(0.5)}" y="${emu(0.3)}"/><a:ext cx="${emu(12)}" cy="${emu(0.7)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr sz="2400" b="1"/><a:t>${escXml(title)}</a:t></a:r></a:p></p:txBody></p:sp>`;
+  const tblXml = `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="3" name="Table 1"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x="${emu(0.5)}" y="${emu(1.1)}"/><a:ext cx="${emu(11.5)}" cy="${emu(0.4*(rows.length+1))}"/></p:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr firstRow="1" bandRow="1"><a:tableStyleId>{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}</a:tableStyleId></a:tblPr><a:tblGrid>${grid}</a:tblGrid>${trs}</a:tbl></a:graphicData></a:graphic></p:graphicFrame>`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>${titleXml}${tblXml}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`;
+}
+
+function pptxImageSlideXml(title, imgWIn, imgHIn){
+  const x = (13.333-imgWIn)/2, y = 1.3;
+  const titleXml = `<p:sp><p:nvSpPr><p:cNvPr id="2" name="TextBox 1"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="${emu(0.5)}" y="${emu(0.3)}"/><a:ext cx="${emu(12)}" cy="${emu(0.7)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr sz="2400" b="1"/><a:t>${escXml(title)}</a:t></a:r></a:p></p:txBody></p:sp>`;
+  const picXml = `<p:pic><p:nvPicPr><p:cNvPr id="3" name="Chart"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(imgWIn)}" cy="${emu(imgHIn)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>${titleXml}${picXml}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`;
+}
+
+function pptxSlideRelsXml(hasImage){
+  let rels = '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout7.xml"/>';
+  if(hasImage) rels += '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/{IMG}"/>';
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels}</Relationships>`;
+}
+
+function dataUrlToUint8(dataUrl){
+  const base64 = dataUrl.split(',')[1];
+  const bin = atob(base64);
+  const arr = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+
+async function renderChartPng(config, wPx, hPx){
+  return new Promise((resolve)=>{
+    const canvas = document.createElement('canvas');
+    canvas.width = wPx; canvas.height = hPx;
+    canvas.style.position='fixed'; canvas.style.left='-99999px'; canvas.style.top='0';
+    document.body.appendChild(canvas);
+    config.options = config.options || {};
+    config.options.animation = false;
+    config.options.responsive = false;
+    const chart = new Chart(canvas.getContext('2d'), config);
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        const url = canvas.toDataURL('image/png');
+        chart.destroy();
+        document.body.removeChild(canvas);
+        resolve(url);
+      });
+    });
+  });
+}
+
+async function buildPptxBlob(slideSpecs){
+  const zip = await JSZip.loadAsync(PPTX_SKELETON_B64, {base64:true});
+  const sldIdEntries = [];
+  const presRelsEntries = [];
+  const ctEntries = [];
+  let mediaCounter = 1;
+  const ridStart = 100, sidStart = 300;
+
+  for(let i=0;i<slideSpecs.length;i++){
+    const spec = slideSpecs[i];
+    const n = i+1;
+    let xml, relsXml;
+    if(spec.type==='text'){
+      xml = pptxTextSlideXml(spec.lines);
+      relsXml = pptxSlideRelsXml(false);
+    } else if(spec.type==='table'){
+      xml = pptxTableSlideXml(spec.title, spec.headers, spec.rows);
+      relsXml = pptxSlideRelsXml(false);
+    } else if(spec.type==='image'){
+      xml = pptxImageSlideXml(spec.title, spec.wIn||8, spec.hIn||4.5);
+      const imgName = `chart${mediaCounter++}.png`;
+      zip.file(`ppt/media/${imgName}`, dataUrlToUint8(spec.dataUrl));
+      relsXml = pptxSlideRelsXml(true).replace('{IMG}', imgName);
+    }
+    zip.file(`ppt/slides/slide${n}.xml`, xml);
+    zip.file(`ppt/slides/_rels/slide${n}.xml.rels`, relsXml);
+    const rid = ridStart+n, sid = sidStart+n;
+    sldIdEntries.push(`<p:sldId id="${sid}" r:id="rId${rid}"/>`);
+    presRelsEntries.push(`<Relationship Id="rId${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${n}.xml"/>`);
+    ctEntries.push(`<Override PartName="/ppt/slides/slide${n}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`);
+  }
+
+  let presXml = await zip.file('ppt/presentation.xml').async('string');
+  presXml = presXml.replace('<p:sldIdLst/>', `<p:sldIdLst>${sldIdEntries.join('')}</p:sldIdLst>`);
+  zip.file('ppt/presentation.xml', presXml);
+
+  let presRels = await zip.file('ppt/_rels/presentation.xml.rels').async('string');
+  presRels = presRels.replace('</Relationships>', presRelsEntries.join('')+'</Relationships>');
+  zip.file('ppt/_rels/presentation.xml.rels', presRels);
+
+  let ct = await zip.file('[Content_Types].xml').async('string');
+  ct = ct.replace('</Types>', ctEntries.join('')+'</Types>');
+  zip.file('[Content_Types].xml', ct);
+
+  return zip.generateAsync({type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.presentationml.presentation'});
+}
+
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
+
+
+/* ================= SCHEDULE ================= */
+function viewSchedule(){
+  const start = state.weekStart;
+  const days = [...Array(7)].map((_,i)=>{ const d=new Date(start); d.setDate(d.getDate()+i); return d; });
+  const todayIso = fmtDate(new Date());
+
+  const rows = state.employees.map(e=>{
+    const cells = days.map(d=>{
+      const iso = fmtDate(d);
+      const s = state.shifts.find(x=>x.employeeId===e.id && x.date===iso);
+      const isToday = iso===todayIso;
+      const badge = s? `<span title="${s.note? s.note.replace(/"/g,'&quot;') : ''}">${shiftBadge()}</span>` : '<span style="color:#C6CCD6;font-size:12px;">+ กำหนด</span>';
+      return `<td class="${isToday?'today-col':''}"><div class="cell-shift" data-emp="${e.id}" data-date="${iso}">${badge}</div></td>`;
+    }).join('');
+    return `<tr><td style="font-weight:600;">${e.name}<div style="font-size:11px;color:var(--slate-400);font-weight:400;">${e.phone||''}</div></td>${cells}</tr>`;
+  }).join('');
+
+  return `
+    <div class="topbar">
+      <div><h1>ตารางเวร</h1><div class="sub">คลิกที่ช่องเพื่อกำหนด/ยกเลิกวันอยู่เวร</div></div>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <button class="btn btn-ghost" id="importScheduleExcel">⬆ อัปโหลดจาก Excel</button>
+        <input type="file" id="scheduleFileInput" accept=".xlsx,.xls" style="display:none;">
+        <div class="weeknav">
+          <button class="btn btn-ghost btn-sm" id="prevWeek">← สัปดาห์ก่อน</button>
+          <div class="lbl mono">${thaiDate(fmtDate(days[0]))} – ${thaiDate(fmtDate(days[6]))}</div>
+          <button class="btn btn-ghost btn-sm" id="nextWeek">สัปดาห์ถัดไป →</button>
+          <button class="btn btn-ghost btn-sm" id="thisWeek">วันนี้</button>
+        </div>
+      </div>
+    </div>
+    <div id="scheduleImportStatus"></div>
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+      <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--slate-400); cursor:pointer;">
+        <input type="checkbox" id="clearBeforeImport" style="width:auto;">
+        ล้างข้อมูลตารางเวรเดิมทั้งหมดก่อนนำเข้าไฟล์นี้ (แนะนำถ้าเคยอัปโหลดไฟล์นี้มาก่อนหน้านี้แล้วข้อมูลคลาดเคลื่อน)
+      </label>
+    </div>
+    <div class="card" style="overflow-x:auto;">
+      ${state.employees.length? `
+      <table>
+        <thead><tr><th style="min-width:130px;">พนักงาน</th>${days.map(d=>`<th class="day-col-head ${fmtDate(d)===todayIso?'':''}">${thaiDate(fmtDate(d))}</th>`).join('')}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>` : `<div class="empty">ยังไม่มีพนักงานในระบบ ไปที่แท็บ "พนักงาน" เพื่อเพิ่ม</div>`}
+    </div>
+    <div style="display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--slate-400); margin-top:6px;">
+      <div style="display:flex;align-items:center;gap:6px;">${shiftBadge()} คลิกช่องว่างเพื่อกำหนดให้อยู่เวร คลิกอีกครั้งเพื่อยกเลิก</div>
+    </div>
+  `;
+}
+
+async function toggleShift(empId, date){
+  const existing = state.shifts.find(s=>s.employeeId===empId && s.date===date);
+  if(existing){
+    state.shifts = state.shifts.filter(s=>s.id!==existing.id);
+  } else {
+    state.shifts.push({id:uid(), employeeId:empId, date});
+  }
+  await saveList('shifts', state.shifts);
+  renderContent();
+}
+
+/* ---------------- Excel import for Schedule (calendar-grid roster format) ---------------- */
+// Layout: each week block is 4 rows in the same columns — a date-header row,
+// then 3 duty rows underneath it at fixed offsets: +1 MPLS, +2 TI, +3 VOICE and DID.
+const SCHEDULE_ROLE_BY_OFFSET = {1:'MPLS', 2:'TI', 3:'VOICE and DID'};
+const SCHEDULE_ROLE_KEYWORDS = ['VOICE and DID', 'MPLS', 'TI'];
+
+function parseDutyCellText(text, roleHint){
+  if(text==null) return [];
+  text = String(text).trim();
+  if(!text) return [];
+  if(/^update/i.test(text) || text==='>>' || /^s$/i.test(text) || /^new start/i.test(text)) return [];
+
+  // Case A: "Name(sublabel)" chunks with no space (e.g. "Weeraphong(day time) Mongkol(night time)")
+  const parenPattern = /([A-Za-zก-๙]+)\(([^)]+)\)/g;
+  let m, direct = [];
+  while((m = parenPattern.exec(text)) !== null){
+    const candidate = m[1].trim();
+    if(!SCHEDULE_ROLE_KEYWORDS.some(k=>k.toLowerCase()===candidate.toLowerCase())){
+      direct.push({ name: candidate, sub: m[2].trim(), role: roleHint });
+    }
+  }
+  if(direct.length) return direct;
+
+  // Case B: "Name ROLE", "Name ROLE (Sub)", "NameA & NameB ROLE"
+  let sub = '';
+  const subMatch = text.match(/\(([^)]+)\)\s*$/);
+  if(subMatch){ sub = subMatch[1].trim(); text = text.slice(0, subMatch.index).trim(); }
+
+  let role = roleHint;
+  for(const k of SCHEDULE_ROLE_KEYWORDS){
+    const idx = text.toLowerCase().lastIndexOf(k.toLowerCase());
+    if(idx !== -1){
+      role = k;
+      text = (text.slice(0, idx) + ' ' + text.slice(idx+k.length)).trim();
+      break;
+    }
+  }
+  return text.split('&').map(n=>n.trim()).filter(Boolean).map(n=>({name:n, sub, role}));
+}
+
+async function handleScheduleExcelImport(file, clearFirst){
+  const statusEl = document.getElementById('scheduleImportStatus');
+  if(statusEl) statusEl.innerHTML = `<div class="banner">⏳ กำลังอ่านไฟล์ ${file.name} ...</div>`;
+  try{
+    if(clearFirst){
+      state.shifts = [];
+      await saveList('shifts', state.shifts);
+    }
+    const buf = await file.arrayBuffer();
+    // NOTE: cellDates:true is intentionally NOT used here — SheetJS's date-cell-to-Date
+    // conversion has been found to be sensitive to the runtime's local timezone (e.g. it
+    // shifts by a day under Asia/Bangkok), so we read raw Excel serial numbers instead and
+    // convert them ourselves with pure integer math (see excelSerialToISO), which is fully
+    // timezone-independent and gives correct results regardless of the browser's clock.
+    const wb = XLSX.read(buf, {type:'array', cellDates:false});
+
+    // map/create employees by name as we go
+    const nameToEmpId = {};
+    state.employees.forEach(e=> nameToEmpId[e.name.trim().toLowerCase()] = e.id);
+    const existingKeys = new Set(state.shifts.map(s=>`${s.employeeId}|${s.date}`));
+    const newShiftsByKey = {}; // key -> {employeeId, date, notes:Set}
+
+    let sheetsRead = 0, entriesFound = 0;
+    for(const sheetName of wb.SheetNames){
+      const sheet = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:null});
+      sheetsRead++;
+      for(let r=0; r<rows.length; r++){
+        const row = rows[r] || [];
+        for(let c=0; c<row.length; c++){
+          const val = row[c];
+          // date-header cells are Excel serial numbers in a sane date range (~2005-2075)
+          if(typeof val !== 'number' || val < 38000 || val > 65000) continue;
+          const dateIso = excelSerialToISO(val);
+          for(let offset=1; offset<=3; offset++){
+            const dutyRow = rows[r+offset];
+            if(!dutyRow) continue;
+            const cellText = dutyRow[c];
+            if(cellText==null || cellText==='') continue;
+            const roleHint = SCHEDULE_ROLE_BY_OFFSET[offset];
+            const parsed = parseDutyCellText(cellText, roleHint);
+            for(const p of parsed){
+              if(!p.name) continue;
+              entriesFound++;
+              const nameKey = p.name.trim().toLowerCase();
+              let empId = nameToEmpId[nameKey];
+              if(!empId){
+                empId = uid();
+                nameToEmpId[nameKey] = empId;
+                state.employees.push({id:empId, name:p.name.trim(), role:'', phone:''});
+              }
+              const key = `${empId}|${dateIso}`;
+              if(existingKeys.has(key)) continue; // don't overwrite manually-set shifts
+              const noteText = p.role + (p.sub? ` (${p.sub})` : '');
+              if(!newShiftsByKey[key]) newShiftsByKey[key] = {employeeId:empId, date:dateIso, notes:new Set()};
+              newShiftsByKey[key].notes.add(noteText);
+            }
+          }
+        }
+      }
+    }
+
+    const newShifts = Object.values(newShiftsByKey).map(x=>({
+      id:uid(), employeeId:x.employeeId, date:x.date, note: Array.from(x.notes).join(' / ')
+    }));
+    state.shifts.push(...newShifts);
+
+    // --- diagnostics: open the browser console (F12) to inspect this ---
+    console.log('[Schedule Import] Sheets found:', wb.SheetNames);
+    console.log('[Schedule Import] Total sheets read:', sheetsRead, '| total entries parsed:', entriesFound, '| new shifts added:', newShifts.length);
+    const debugRange = newShifts
+      .filter(s=> s.date>='2026-08-25' && s.date<='2026-09-10')
+      .map(s=> ({ date:s.date, employee: (state.employees.find(e=>e.id===s.employeeId)||{}).name, note:s.note }))
+      .sort((a,b)=> a.date.localeCompare(b.date));
+    console.log('[Schedule Import] Aug25–Sep10 detail (check this against your Excel file):');
+    console.table(debugRange);
+    await saveList('employees', state.employees);
+    await saveList('shifts', state.shifts);
+
+    if(statusEl) statusEl.innerHTML = `<div class="banner" style="background:var(--green-dim); color:#265c39;">✅ นำเข้าสำเร็จ${clearFirst? ' (ล้างข้อมูลเดิมก่อนนำเข้าแล้ว)':''}: อ่าน ${sheetsRead} ชีต พบ ${entriesFound} รายการ เพิ่มวันอยู่เวรใหม่ ${newShifts.length} รายการ${clearFirst? '' : ' (ข้ามรายการที่มีอยู่แล้ว)'}</div>`;
+    renderContent();
+  }catch(err){
+    console.error(err);
+    if(statusEl) statusEl.innerHTML = `<div class="banner" style="background:var(--red-dim); color:#8a1f1f;">⚠ นำเข้าไม่สำเร็จ: ${err.message||err}</div>`;
+  }
+}
+
+/* ================= APPOINTMENTS ================= */
+function viewAppt(){
+  let list = state.appointments.slice().sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
+  if(state.apptFilter!=='all') list = list.filter(a=>apptApprovalStatus(a)===state.apptFilter);
+  const isAdmin = session.user && session.user.role==='admin';
+
+  return `
+    <div class="topbar">
+      <div><h1>นัดหมายติดตั้ง</h1><div class="sub">ส่งนัดหมายจากหน้างาน และติดตามสถานะการติดตั้ง</div></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-ghost" id="openSmcMonitor">📡 แจ้ง SMC Monitor</button>
+        <button class="btn btn-ghost" id="exportApptExcel">📊 Export Excel</button>
+        <button class="btn btn-amber" id="addAppt">+ ส่งนัดหมายใหม่</button>
+      </div>
+    </div>
+    <div id="apptActionStatus"></div>
+    <div class="pill-tabs">
+      <div class="pill-tab ${state.apptFilter==='all'?'active':''}" data-f="all">ทั้งหมด (${state.appointments.length})</div>
+      ${APPROVAL_STATUS.map(s=>`<div class="pill-tab ${state.apptFilter===s.v?'active':''}" data-f="${s.v}">${s.label} (${state.appointments.filter(a=>apptApprovalStatus(a)===s.v).length})</div>`).join('')}
+    </div>
+    <div class="card">
+      ${list.length? `
+      <table>
+        <thead><tr><th>วันที่/เวลา</th><th>Circuit</th><th>ช่างผู้รับผิดชอบ</th><th>แจ้งโดย</th><th>สถานะอนุมัติ</th><th>สถานะงาน</th><th></th></tr></thead>
+        <tbody>
+          ${list.map(a=>{
+            const appr = apptApprovalStatus(a);
+            const done = apptDoneStatus(a);
+            return `
+            <tr>
+              <td class="mono">${thaiDate(a.date)}<br>${a.time||''}</td>
+              <td style="font-weight:600;">${a.customer}</td>
+              <td>${a.technicianName||empName(a.employeeId)||'-'}${a.technicianPhone? `<div style="font-size:11px;color:var(--slate-400);">${a.technicianPhone}</div>`:''}</td>
+              <td style="font-size:12px;">${a.submittedByName||'-'}</td>
+              <td>${apptApprovalBadge(a)}${a.approvedBy? `<div style="font-size:10px;color:var(--slate-400); margin-top:3px;">อนุมัติโดย ${a.approvedBy}</div>`:''}</td>
+              <td>${apptDoneBadge(a)}</td>
+              <td style="white-space:nowrap;">
+                ${isAdmin && appr==='pending'? `<button class="btn btn-amber btn-sm" data-approveappt="${a.id}">✓ อนุมัติ</button>` : ''}
+                ${isAdmin && appr==='approved' && done!=='done'? `<button class="btn btn-ghost btn-sm" data-doneappt="${a.id}">ทำเครื่องหมายเสร็จสิ้น</button>` : ''}
+                ${isAdmin && appr!=='cancelled' && done!=='done'? `<button class="btn btn-ghost btn-sm" data-cancelappt="${a.id}">ยกเลิก</button>` : ''}
+                <button class="btn btn-ghost btn-sm" data-editappt="${a.id}">แก้ไข</button>
+                <button class="btn btn-danger btn-sm" data-delappt="${a.id}">ลบ</button>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>` : `<div class="empty">ไม่มีนัดหมายในหมวดนี้</div>`}
+    </div>
+  `;
+}
+
+function openApptDialog(existing){
+  const dlg = document.getElementById('dlg');
+  // backward-compat: older appointments only had a single `time` field, not timeStart/timeEnd
+  const legacyStart = existing && !existing.timeStart && existing.time ? existing.time.split('-')[0].trim() : null;
+  const legacyEnd = existing && !existing.timeEnd && existing.time ? (existing.time.split('-')[1]||existing.time.split('-')[0]).trim() : null;
+  const prefillStart = existing ? (existing.timeStart || legacyStart) : null;
+  const prefillEnd = existing ? (existing.timeEnd || legacyEnd) : null;
+  dlg.innerHTML = `
+    <div class="dialog-head"><h3>${existing?'แก้ไขนัดหมาย':'ส่งนัดหมายติดตั้งใหม่'}</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+    <div class="dialog-body">
+      <div class="field"><label>วันที่นัดหมาย</label><input type="date" id="f_date" value="${existing? existing.date : fmtDate(new Date())}"></div>
+      <div class="field"><label>ช่วงเวลา (24 ชม.)</label>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span style="font-size:12px; color:var(--slate-400); min-width:56px;">เริ่ม</span>
+          <select id="f_time_start_h" style="flex:1; min-width:64px;">${Array.from({length:24},(_,h)=>String(h).padStart(2,'0')).map(h=>`<option value="${h}" ${prefillStart&&prefillStart.split(':')[0]===h?'selected':''}>${h}</option>`).join('')}</select>
+          <span style="font-weight:700;">:</span>
+          <select id="f_time_start_m" style="flex:1; min-width:64px;">${Array.from({length:60},(_,m)=>String(m).padStart(2,'0')).map(m=>`<option value="${m}" ${prefillStart&&prefillStart.split(':')[1]===m?'selected':''}>${m}</option>`).join('')}</select>
+          <span style="font-weight:700; padding:0 4px;">–</span>
+          <span style="font-size:12px; color:var(--slate-400); min-width:56px;">ถึง</span>
+          <select id="f_time_end_h" style="flex:1; min-width:64px;">${Array.from({length:24},(_,h)=>String(h).padStart(2,'0')).map(h=>`<option value="${h}" ${prefillEnd&&prefillEnd.split(':')[0]===h?'selected':''}>${h}</option>`).join('')}</select>
+          <span style="font-weight:700;">:</span>
+          <select id="f_time_end_m" style="flex:1; min-width:64px;">${Array.from({length:60},(_,m)=>String(m).padStart(2,'0')).map(m=>`<option value="${m}" ${prefillEnd&&prefillEnd.split(':')[1]===m?'selected':''}>${m}</option>`).join('')}</select>
+        </div>
+        <div style="font-size:11px; color:var(--slate-400); margin-top:4px;">ถ้านัดหมายเป็นเวลาเดียว (ไม่มีช่วง) ให้ตั้งเวลาเริ่มและเวลาสิ้นสุดเป็นเวลาเดียวกันได้</div>
+      </div>
+      <div class="field"><label>Circuit</label><input id="f_customer" value="${existing? existing.customer||'':''}" placeholder="หมายเลข Circuit"></div>
+      <div class="field-row">
+        <div class="field"><label>ช่างผู้รับผิดชอบ</label><input id="f_techname" value="${existing? existing.technicianName||'':''}" placeholder="ชื่อช่างผู้รับผิดชอบ"></div>
+        <div class="field"><label>เบอร์โทรช่างที่รับผิดชอบ</label><input id="f_techphone" value="${existing? existing.technicianPhone||'':''}" placeholder="08x-xxx-xxxx"></div>
+      </div>
+      <div class="field"><label>หมายเหตุ</label><textarea id="f_note" rows="2" placeholder="รายละเอียดงาน อุปกรณ์ที่ต้องใช้ ฯลฯ">${existing? existing.note||'':''}</textarea></div>
+      ${!existing? `<div style="font-size:11px; color:var(--slate-400);">ระบบจะบันทึก "แจ้งโดย" เป็น ${session.user? session.user.name : '-'} โดยอัตโนมัติจากบัญชีที่ล็อกอินอยู่</div>` : ''}
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-ghost" id="dlgCancel">ยกเลิก</button>
+      <button class="btn btn-amber" id="saveAppt">บันทึก</button>
+    </div>
+  `;
+  dlg.showModal();
+  dlg.querySelector('#dlgClose').onclick=()=>dlg.close();
+  dlg.querySelector('#dlgCancel').onclick=()=>dlg.close();
+  dlg.querySelector('#saveAppt').onclick = async ()=>{
+    const customer = dlg.querySelector('#f_customer').value.trim();
+    if(!customer){ alert('กรุณากรอก Circuit'); return; }
+    const data = {
+      date: dlg.querySelector('#f_date').value || fmtDate(new Date()),
+      timeStart: `${dlg.querySelector('#f_time_start_h').value}:${dlg.querySelector('#f_time_start_m').value}`,
+      timeEnd: `${dlg.querySelector('#f_time_end_h').value}:${dlg.querySelector('#f_time_end_m').value}`,
+      customer,
+      technicianName: dlg.querySelector('#f_techname').value.trim(),
+      technicianPhone: dlg.querySelector('#f_techphone').value.trim(),
+      note: dlg.querySelector('#f_note').value.trim(),
+    };
+    data.time = data.timeStart===data.timeEnd ? data.timeStart : `${data.timeStart}-${data.timeEnd}`;
+    if(existing){ Object.assign(existing, data); }
+    else { state.appointments.push({id:uid(), approvalStatus:'pending', doneStatus:'not_done', submittedByName: session.user? session.user.name : '', submittedByEmail: session.user? session.user.email||'' : '', ...data}); }
+    await saveList('appointments', state.appointments);
+    dlg.close(); renderContent();
+  };
+}
+
+async function exportApptToExcel(){
+  const list = state.appointments.slice().sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
+  const filtered = state.apptFilter==='all' ? list : list.filter(a=> apptApprovalStatus(a)===state.apptFilter);
+  if(!filtered.length){ alert('ไม่มีข้อมูลนัดหมายในหมวดนี้ให้ export'); return; }
+
+  const header = ['Circuit','วันที่','เวลา','ช่างผู้รับผิดชอบ','เบอร์โทรช่าง','แจ้งโดย','อีเมลผู้แจ้ง','สถานะอนุมัติ','อนุมัติโดย','วันที่อนุมัติ','สถานะงาน','หมายเหตุ'];
+  const rows = [header, ...filtered.map(a=>[
+    a.customer||'',
+    dmy(a.date),
+    a.time||'',
+    a.technicianName||empName(a.employeeId)||'',
+    a.technicianPhone||'',
+    a.submittedByName||'',
+    a.submittedByEmail||'',
+    (APPROVAL_STATUS.find(s=>s.v===apptApprovalStatus(a))||{}).label||'',
+    a.approvedBy||'',
+    a.approvedAt? dmy(a.approvedAt) : '',
+    (DONE_STATUS.find(s=>s.v===apptDoneStatus(a))||{}).label||'',
+    a.note||'',
+  ])];
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:12},{wch:12},{wch:14},{wch:18},{wch:14},{wch:16},{wch:26},{wch:14},{wch:16},{wch:12},{wch:12},{wch:24}];
+  XLSX.utils.book_append_sheet(wb, ws, 'นัดหมายติดตั้ง');
+  const filterLabel = state.apptFilter==='all' ? 'ทั้งหมด' : ((APPROVAL_STATUS.find(s=>s.v===state.apptFilter)||{}).label||state.apptFilter);
+  XLSX.writeFile(wb, `นัดหมายติดตั้ง_${filterLabel}_${fmtDate(new Date())}.xlsx`);
+}
+
+/* ---------------- approval + notification email ---------------- */
+function buildMailtoLink(to, cc, subject, body){
+  const params = new URLSearchParams({ subject, body });
+  if(cc) params.set('cc', cc);
+  return `mailto:${encodeURIComponent(to)}?${params.toString().replace(/\+/g,'%20')}`;
+}
+
+let approveState = null; // { apptId, selected:Set<employeeId> }
+
+// kept as the entry point wired from the table's "✓ อนุมัติ" button
+function approveAppointment(apptId){
+  const appt = state.appointments.find(a=>a.id===apptId);
+  if(!appt) return;
+  const onDuty = state.shifts.filter(s=> s.date===appt.date)
+    .map(s=> state.employees.find(x=>x.id===s.employeeId))
+    .filter(Boolean);
+  approveState = { apptId, selected: new Set(onDuty.length? [onDuty[0].id] : []) };
+  renderApproveDialogSelect();
+}
+
+function renderApproveDialogSelect(){
+  const dlg = document.getElementById('dlg');
+  const appt = state.appointments.find(a=>a.id===approveState.apptId);
+  if(!appt) return;
+  const onDuty = state.shifts.filter(s=> s.date===appt.date)
+    .map(s=> state.employees.find(x=>x.id===s.employeeId))
+    .filter(Boolean);
+  const checkboxes = onDuty.map(e=>`
+      <label style="display:flex; align-items:flex-start; justify-content:flex-start; gap:8px; padding:6px 2px; font-size:13.5px; cursor:pointer; width:100%; max-width:100%; box-sizing:border-box; text-align:left; direction:ltr;">
+        <input type="checkbox" class="approve-duty-chk" value="${e.id}" ${approveState.selected.has(e.id)?'checked':''} style="width:auto; margin-top:3px; flex:0 0 auto;">
+        <span style="flex:1 1 0%; min-width:0; max-width:100%; overflow-wrap:anywhere; word-break:break-word; text-align:left;">
+          <div style="font-weight:600;">${e.name}</div>
+          ${e.phone? `<div class="mono" style="font-size:11.5px; color:var(--slate-400);">${e.phone}</div>` : ''}
+        </span>
+      </label>`).join('');
+
+  dlg.innerHTML = `
+    <div class="dialog-head"><h3>อนุมัตินัดหมาย</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+    <div class="dialog-body">
+      <div style="font-size:13.5px; margin-bottom:12px; line-height:1.6;">
+        Circuit <b>${appt.customer}</b><br>วันที่ ${thaiDate(appt.date)} ${appt.time||''}
+      </div>
+      <div class="field">
+        <label>แจ้งชื่อคนอยู่เวรวันนี้เป็น (เลือกได้มากกว่า 1 คน)</label>
+        ${onDuty.length? `<div style="border:1px solid var(--line); border-radius:8px; padding:6px 8px; overflow-x:hidden; box-sizing:border-box;">${checkboxes}</div>`
+          : `<div class="empty">ไม่มีการจัดเวรสำหรับวันนี้ กรุณาตรวจสอบตารางเวร — จะอนุมัติโดยไม่ระบุชื่อคนอยู่เวรได้</div>`}
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-ghost" id="dlgCancel">ยกเลิก</button>
+      <button class="btn btn-amber" id="confirmApprove">✓ ยืนยันอนุมัติ</button>
+    </div>
+  `;
+  dlg.showModal();
+  dlg.querySelector('#dlgClose').onclick = ()=> dlg.close();
+  dlg.querySelector('#dlgCancel').onclick = ()=> dlg.close();
+  dlg.querySelectorAll('.approve-duty-chk').forEach(chk=>{
+    chk.onchange = ()=>{
+      if(chk.checked) approveState.selected.add(chk.value);
+      else approveState.selected.delete(chk.value);
+    };
+  });
+  dlg.querySelector('#confirmApprove').onclick = async ()=>{
+    await doApproveAppointment(approveState.apptId, Array.from(approveState.selected));
+    renderApproveDialogEmail(); // switch the SAME dialog into an SMC-style editable email draft
+  };
+}
+
+function approveEmailFields(appt){
+  const FIXED_CC = 'bo-ip-pro@ericsson.com';
+  const chosenEmps = Array.from(approveState.selected).map(id=> state.employees.find(e=>e.id===id)).filter(Boolean);
+  const onDutyList = chosenEmps.map(e=> `${e.name} โทร ${e.phone||'-'}`);
+  const onDutyEmails = chosenEmps.map(e=> (e.email||'').trim()).filter(Boolean);
+  const ccList = Array.from(new Set([...onDutyEmails, FIXED_CC]));
+  const subject = `นัดหมายติดตั้งได้รับการอนุมัติแล้ว — Circuit ${appt.customer} (${dmy(appt.date)})`;
+  const bodyLines = [
+    `นัดหมายติดตั้ง Circuit "${appt.customer}" วันที่ ${dmy(appt.date)} ${appt.time||''}`,
+    '',
+    `ช่างผู้รับผิดชอบ: ${appt.technicianName||empName(appt.employeeId)||'-'}`,
+    `เบอร์โทรช่างที่รับผิดชอบ: ${appt.technicianPhone||'-'}`,
+    appt.note? `หมายเหตุงาน: ${appt.note}` : null,
+    '',
+    `ผู้อยู่เวรที่แจ้งในวันที่ ${dmy(appt.date)}:`,
+    onDutyList.length? onDutyList.map(l=>`- ${l}`).join('\n') : '(ไม่ได้ระบุชื่อผู้อยู่เวร)',
+  ].filter(l=> l!==null).join('\n');
+  return { to: appt.submittedByEmail||'', cc: ccList.join(','), subject, body: bodyLines };
+}
+
+// after the appointment is saved as approved, turn the SAME dialog into an
+// SMC-Monitor-style editable email draft (To/Cc/Subject/Body + copy/open-mail
+// buttons) — nothing is ever auto-sent, the admin reviews/edits then sends it themselves.
+function renderApproveDialogEmail(){
+  const dlg = document.getElementById('dlg');
+  const appt = state.appointments.find(a=>a.id===approveState.apptId);
+  if(!appt) return;
+
+  if(!appt.submittedByEmail){
+    dlg.innerHTML = `
+      <div class="dialog-head"><h3>อนุมัติสำเร็จ</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+      <div class="dialog-body">
+        <div class="banner" style="background:var(--amber-dim); color:#8a5a0c;">✅ อนุมัตินัดหมายแล้ว แต่ไม่มีอีเมลผู้แจ้ง จึงไม่สามารถร่างอีเมลแจ้งกลับได้</div>
+      </div>
+      <div class="dialog-foot"><button class="btn btn-amber" id="dlgClose2">ปิด</button></div>
+    `;
+    dlg.querySelector('#dlgClose').onclick = ()=> dlg.close();
+    dlg.querySelector('#dlgClose2').onclick = ()=> dlg.close();
+    return;
+  }
+
+  const f = approveEmailFields(appt);
+  dlg.innerHTML = `
+    <div class="dialog-head"><h3>อนุมัติสำเร็จ — ร่างอีเมลแจ้งผล</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+    <div class="dialog-body">
+      <div class="banner" style="background:var(--green-dim); color:#265c39; margin-bottom:12px;">✅ อนุมัตินัดหมายแล้ว — ตรวจ/แก้ไขเนื้อหาด้านล่างก่อนเปิดส่งอีเมลเอง (ไม่มีการส่งอัตโนมัติ)</div>
+      <div class="field"><label>ถึง (To)</label><textarea id="apprTo" rows="2">${f.to}</textarea></div>
+      <div class="field"><label>สำเนา (Cc)</label><textarea id="apprCc" rows="2">${f.cc}</textarea></div>
+      <div class="field"><label>หัวข้อ (Subject)</label><input id="apprSubject" value="${f.subject}"></div>
+      <div class="field"><label>เนื้อหา (Body)</label><textarea id="apprBody" rows="9">${f.body}</textarea></div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-ghost" id="apprCopyBody" type="button">คัดลอกเนื้อหา</button>
+      <button class="btn" id="apprOpenMail" type="button" style="background:var(--green); color:#fff;">✉ เปิดในอีเมล</button>
+    </div>
+  `;
+  dlg.querySelector('#dlgClose').onclick = ()=> dlg.close();
+  dlg.querySelector('#apprCopyBody').onclick = async ()=>{
+    const btn = dlg.querySelector('#apprCopyBody');
+    try{ await navigator.clipboard.writeText(dlg.querySelector('#apprBody').value); btn.textContent='คัดลอกแล้ว ✓'; setTimeout(()=>btn.textContent='คัดลอกเนื้อหา', 1500); }
+    catch(e){ alert('คัดลอกไม่สำเร็จ กรุณาเลือกข้อความด้วยตนเอง'); }
+  };
+  dlg.querySelector('#apprOpenMail').onclick = ()=>{
+    const to = dlg.querySelector('#apprTo').value.trim();
+    const cc = dlg.querySelector('#apprCc').value.trim();
+    const subject = dlg.querySelector('#apprSubject').value;
+    const body = dlg.querySelector('#apprBody').value;
+    window.location.href = buildMailtoLink(to, cc, subject, body);
+  };
+}
+
+async function doApproveAppointment(apptId, chosenEmpIds){
+  const appt = state.appointments.find(a=>a.id===apptId);
+  if(!appt) return;
+  appt.approvalStatus = 'approved';
+  appt.approvedBy = session.user.name;
+  appt.approvedAt = fmtDate(new Date());
+  appt.notifiedEmployeeIds = chosenEmpIds || [];
+  await saveList('appointments', state.appointments);
+  // update the table behind the dialog; the dialog itself is a separate element
+  // so this re-render never wipes out what we're about to show in it.
+  renderContent();
+}
+
+async function setApptApproval(apptId, approvalStatus, confirmMsg){
+  const appt = state.appointments.find(a=>a.id===apptId);
+  if(!appt) return;
+  if(confirmMsg && !confirm(confirmMsg)) return;
+  appt.approvalStatus = approvalStatus;
+  await saveList('appointments', state.appointments);
+  renderContent();
+}
+
+async function setApptDone(apptId, doneStatus, confirmMsg){
+  const appt = state.appointments.find(a=>a.id===apptId);
+  if(!appt) return;
+  if(confirmMsg && !confirm(confirmMsg)) return;
+  appt.doneStatus = doneStatus;
+  await saveList('appointments', state.appointments);
+  renderContent();
+}
+
+/* ---------------- SMC Monitor Link notification ---------------- */
+const SMC_TO_DEFAULT = 'Boonyalap Leearam; pakkawan.traisawasdi@ericsson.com; Penpak Jaikla; Saroj Keeratisathitporn; smc@truecorp.co.th; corpcare@trueinternet.co.th';
+const SMC_CC_DEFAULT = 'nsa-team@truecorp.co.th; DPO-FIX; bo-ip-pro@ericsson.com; prapapan.milintasoot@ericsson.com';
+let smcState = null; // { tab:'before'|'after', todayOnly:bool, selected:Set<apptId>, to, cc }
+
+function smcCircuitPool(){
+  let list = state.appointments.slice();
+  if(smcState.todayOnly){ const today = fmtDate(new Date()); list = list.filter(a=>a.date===today); }
+  list.sort((a,b)=> (a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+  return list;
+}
+function smcCircuitCountLabel(){
+  const count = smcCircuitPool().filter(a=> smcState.selected.has(a.id)).length;
+  return count>0 ? `${count} Circuit` : '[ยังไม่ได้เลือก Circuit]';
+}
+function smcCircuitTableText(){
+  const chosen = smcCircuitPool().filter(a=> smcState.selected.has(a.id));
+  if(!chosen.length) return '[ยังไม่ได้เลือก Circuit]';
+  const rows = chosen.map(a=>{
+    const timeRange = (a.timeStart && a.timeEnd) ? `${a.timeStart} - ${a.timeEnd}` : (a.time||'-');
+    // this table's status column reflects the notification's phase, not the appointment's
+    // live approval/done status — "before" is always "รอดำเนินการ", "after" is always "ดำเนินการเสร็จสิ้น"
+    const status = smcState.tab==='after' ? 'ดำเนินการเสร็จสิ้น' : 'รอดำเนินการ';
+    return { circuit: a.customer||'-', when: `${timeRange} (${dmy(a.date)})`, status };
+  });
+  const col1 = Math.max('CIRCUIT'.length, ...rows.map(r=>r.circuit.length)) + 2;
+  const col2 = Math.max('เวลานัดหมาย'.length, ...rows.map(r=>r.when.length)) + 2;
+  const sepLen = col1 + col2 + Math.max('สถานะ'.length, ...rows.map(r=>r.status.length));
+  const header = 'CIRCUIT'.padEnd(col1) + 'เวลานัดหมาย'.padEnd(col2) + 'สถานะ';
+  const sep = '-'.repeat(sepLen);
+  const lines = rows.map(r=> r.circuit.padEnd(col1) + r.when.padEnd(col2) + r.status);
+  return [header, sep, ...lines].join('\n');
+}
+function smcSubjectText(){
+  const phase = smcState.tab==='before' ? 'ก่อนดำเนินการติดตั้ง' : 'หลังดำเนินการติดตั้ง';
+  return `แจ้ง Monitor Link ${phase} - ${smcCircuitCountLabel()}`;
+}
+function smcBodyText(){
+  const table = smcCircuitTableText();
+  if(smcState.tab==='before'){
+    return [
+      'เรียน SMC Team,',
+      'รบกวนช่วย Monitor Link ดังต่อไปนี้ ในระหว่างดำเนินการติดตั้งและหลังการติดตั้งแล้วเสร็จ เพื่อเฝ้าระวังสถานะการเชื่อมต่อและความพร้อมในการให้บริการ',
+      table,
+      'หากพบ Alarm, เหตุขัดข้อง หรือความผิดปกติใดๆ ที่อาจส่งผลกระทบต่อการให้บริการ รบกวนแจ้งกลับทีมงานโดยทันที เพื่อดำเนินการตรวจสอบและแก้ไขต่อไป',
+      'ขอขอบคุณสำหรับการสนับสนุนและความร่วมมือ',
+    ].join('\n');
+  }
+  return [
+    'เรียน SMC Team,',
+    'เรียนแจ้งให้ทราบว่าการติดตั้ง Circuit ดังต่อไปนี้ดำเนินการเสร็จสิ้นเรียบร้อยแล้ว รบกวนช่วย Monitor Link ต่อเนื่อง เพื่อเฝ้าระวังสถานะการเชื่อมต่อและความพร้อมในการให้บริการ',
+    table,
+    'หากพบ Alarm, เหตุขัดข้อง หรือความผิดปกติใดๆ ที่อาจส่งผลกระทบต่อการให้บริการ รบกวนแจ้งกลับทีมงานโดยทันที เพื่อดำเนินการตรวจสอบและแก้ไขต่อไป',
+    'ขอขอบคุณสำหรับการสนับสนุนและความร่วมมือ',
+  ].join('\n');
+}
+
+function openSmcMonitorDialog(){
+  smcState = { tab:'before', todayOnly:true, selected:new Set(), to:SMC_TO_DEFAULT, cc:SMC_CC_DEFAULT };
+  renderSmcDialog();
+}
+
+function renderSmcDialog(){
+  const dlg = document.getElementById('dlg');
+  const pool = smcCircuitPool();
+  const circuitListHtml = pool.length? pool.map(a=>`
+      <label style="display:flex; align-items:flex-start; justify-content:flex-start; gap:8px; padding:5px 2px; font-size:13px; cursor:pointer; width:100%; max-width:100%; box-sizing:border-box; text-align:left; direction:ltr;">
+        <input type="checkbox" class="smc-circuit-chk" value="${a.id}" ${smcState.selected.has(a.id)?'checked':''} style="width:auto; margin-top:3px; flex:0 0 auto;">
+        <span style="flex:1 1 0%; min-width:0; max-width:100%; overflow-wrap:anywhere; word-break:break-word; text-align:left;">${a.customer||'(ไม่ระบุ Circuit)'} <span class="mono" style="color:var(--slate-400); font-size:11px;">— ${dmy(a.date)}${a.time? ' '+a.time:''}</span></span>
+      </label>`).join('')
+    : `<div class="empty" style="padding:4px 2px; font-size:12.5px;">ไม่มี Circuit ที่นัดหมาย${smcState.todayOnly? 'วันนี้':''}</div>`;
+
+  dlg.innerHTML = `
+    <div class="dialog-head"><h3>แจ้งทีม SMC Monitor Link</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+    <div class="dialog-body">
+      <div class="pill-tabs">
+        <div class="pill-tab ${smcState.tab==='before'?'active':''}" data-smctab="before">ก่อนดำเนินการติดตั้ง</div>
+        <div class="pill-tab ${smcState.tab==='after'?'active':''}" data-smctab="after">หลังดำเนินการติดตั้ง</div>
+      </div>
+
+      <div class="field">
+        <label>รายการนัดนอกเวลาทำการ (Circuit)</label>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin:4px 0 8px 0; flex-wrap:wrap; gap:8px 12px;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:500; cursor:pointer; white-space:nowrap; flex-shrink:0;">
+            <input type="checkbox" id="smcTodayOnly" style="width:auto;" ${smcState.todayOnly?'checked':''}> แสดงเฉพาะวันนี้
+          </label>
+          <div style="display:flex; gap:6px; flex-shrink:0;">
+            <button class="btn btn-ghost btn-sm" id="smcSelectAll" type="button">เลือกทั้งหมด</button>
+            <button class="btn btn-ghost btn-sm" id="smcClearAll" type="button">ล้างการเลือก</button>
+          </div>
+        </div>
+        <div style="border:1px solid var(--line); border-radius:8px; max-height:150px; overflow-y:auto; overflow-x:hidden; padding:6px 8px; box-sizing:border-box;">
+          ${circuitListHtml}
+        </div>
+      </div>
+
+      <div class="field"><label>ถึง (To)</label><textarea id="smcTo" rows="2">${smcState.to}</textarea></div>
+      <div class="field"><label>สำเนา (Cc)</label><textarea id="smcCc" rows="2">${smcState.cc}</textarea></div>
+      <div class="field"><label>หัวข้อ (Subject)</label><input id="smcSubject" value="${smcSubjectText()}"></div>
+      <div class="field"><label>เนื้อหา (Body)</label><textarea id="smcBody" rows="9">${smcBodyText()}</textarea></div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-ghost" id="smcCopyBody" type="button">คัดลอกเนื้อหา</button>
+      <button class="btn" id="smcOpenMail" type="button" style="background:var(--green); color:#fff;">✉ เปิดในอีเมล</button>
+    </div>
+  `;
+  dlg.showModal();
+  bindSmcDialogEvents();
+}
+
+function bindSmcDialogEvents(){
+  const dlg = document.getElementById('dlg');
+  const captureEditable = ()=>{
+    smcState.to = dlg.querySelector('#smcTo').value;
+    smcState.cc = dlg.querySelector('#smcCc').value;
+  };
+
+  dlg.querySelector('#dlgClose').onclick = ()=> dlg.close();
+
+  dlg.querySelectorAll('[data-smctab]').forEach(el=>{
+    el.onclick = ()=>{ captureEditable(); smcState.tab = el.dataset.smctab; renderSmcDialog(); };
+  });
+
+  const todayChk = dlg.querySelector('#smcTodayOnly');
+  if(todayChk) todayChk.onchange = ()=>{ captureEditable(); smcState.todayOnly = todayChk.checked; renderSmcDialog(); };
+
+  dlg.querySelectorAll('.smc-circuit-chk').forEach(chk=>{
+    chk.onchange = ()=>{
+      captureEditable();
+      if(chk.checked) smcState.selected.add(chk.value); else smcState.selected.delete(chk.value);
+      renderSmcDialog();
+    };
+  });
+
+  const selAllBtn = dlg.querySelector('#smcSelectAll');
+  if(selAllBtn) selAllBtn.onclick = ()=>{ captureEditable(); smcCircuitPool().forEach(a=> smcState.selected.add(a.id)); renderSmcDialog(); };
+  const clearBtn = dlg.querySelector('#smcClearAll');
+  if(clearBtn) clearBtn.onclick = ()=>{ captureEditable(); smcState.selected.clear(); renderSmcDialog(); };
+
+  const copyBtn = dlg.querySelector('#smcCopyBody');
+  if(copyBtn) copyBtn.onclick = async ()=>{
+    try{ await navigator.clipboard.writeText(dlg.querySelector('#smcBody').value); copyBtn.textContent='คัดลอกแล้ว ✓'; setTimeout(()=>copyBtn.textContent='คัดลอกเนื้อหา', 1500); }
+    catch(e){ alert('คัดลอกไม่สำเร็จ กรุณาเลือกข้อความด้วยตนเอง'); }
+  };
+
+  const openMailBtn = dlg.querySelector('#smcOpenMail');
+  if(openMailBtn) openMailBtn.onclick = ()=>{
+    // never auto-sends — this only opens a draft in the user's own mail app so they
+    // can review/edit and send it themselves.
+    const to = dlg.querySelector('#smcTo').value.trim();
+    const cc = dlg.querySelector('#smcCc').value.trim();
+    const subject = dlg.querySelector('#smcSubject').value;
+    const body = dlg.querySelector('#smcBody').value;
+    window.location.href = buildMailtoLink(to, cc, subject, body);
+  };
+}
+
+/* ================= PLANWORK ================= */
+function viewPlanwork(){
+  let list = state.planworks.slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+  const q = state.planworkSearch.trim().toLowerCase();
+  if(q){
+    list = list.filter(p=> [p.planNo,p.detail,p.node,p.reference,p.assignBy,p.workType,p.vendor,p.remark,p.remarkMail]
+      .some(v=> (v||'').toLowerCase().includes(q)));
+  }
+
+  return `
+    <div class="topbar">
+      <div><h1>Planwork</h1><div class="sub">ตารางนัดหมายแผนงาน (Planwork) — Node/MPLS, Vendor และหมายเหตุแจ้งเมล</div></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-ghost" id="importExcel">⬆ อัปโหลดจาก Excel</button>
+        <input type="file" id="pwFileInput" accept=".xlsx,.xls" style="display:none;">
+        <button class="btn btn-ghost" id="fixLegacyAssign">🔧 แก้ Assingment By เก่า</button>
+        <button class="btn btn-ghost" id="openPwNotify">📧 แจ้ง PW Change/Swap/Off-node</button>
+        <button class="btn btn-amber" id="addPlanwork">+ เพิ่ม Planwork</button>
+      </div>
+    </div>
+    <div id="pwImportStatus"></div>
+    <div class="filters">
+      <div class="field" style="min-width:260px;">
+        <label>ค้นหา</label>
+        <input id="pwSearch" value="${state.planworkSearch}" placeholder="ค้นหา Planwork_No, Detail, Node/MPLS, Vendor ...">
+      </div>
+      <div style="font-size:11.5px; color:var(--slate-400); max-width:420px; padding-bottom:4px;">
+        ไฟล์ Excel แถวแรกต้องเป็นหัวตาราง ระบบจะจับคู่คอลัมน์ตามชื่อ: D/M/Y, Day/Night Time, Planwork_No, Detail, Node/MPLS, Referance, Assingment By, Work Type, Vender, ReMark, ReMark Mail (ไม่สนตัวพิมพ์เล็ก-ใหญ่)
+      </div>
+    </div>
+    <div class="card" style="overflow-x:auto;">
+      ${list.length? `
+      <table style="min-width:1180px;">
+        <thead>
+          <tr>
+            <th>D/M/Y</th>
+            <th>Day/Night Time</th>
+            <th>Planwork_No</th>
+            <th>Detail</th>
+            <th>Node/MPLS</th>
+            <th>Referance</th>
+            <th>Assingment By</th>
+            <th>Work Type</th>
+            <th>Vender</th>
+            <th>ReMark</th>
+            <th>ReMark Mail</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${list.map(p=>`
+            <tr>
+              <td class="mono">${dmy(p.date)}</td>
+              <td class="mono">${p.dnType?`<span class="badge ${p.dnType==='Night'?'night':'morning'}">${p.dnType}</span>`:''} ${p.dnTime||''}</td>
+              <td style="font-weight:600;">${p.planNo||'-'}</td>
+              <td style="max-width:220px; white-space:pre-wrap;">${p.detail||'-'}</td>
+              <td>${p.node||'-'}</td>
+              <td>${p.reference||'-'}</td>
+              <td>${p.assignBy||'-'}</td>
+              <td>${p.workType||'-'}</td>
+              <td>${p.vendor||'-'}</td>
+              <td style="max-width:160px; white-space:pre-wrap;">${p.remark||'-'}</td>
+              <td style="max-width:160px; white-space:pre-wrap;">${p.remarkMail||'-'}</td>
+              <td style="white-space:nowrap;">
+                <button class="btn btn-ghost btn-sm" data-editpw="${p.id}">แก้ไข</button>
+                <button class="btn btn-danger btn-sm" data-delpw="${p.id}">ลบ</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>` : `<div class="empty">ยังไม่มีข้อมูล Planwork ${q?'ที่ตรงกับการค้นหา':''}</div>`}
+    </div>
+  `;
+}
+
+/* ---------------- PW Change/Swap/Off-node notification ---------------- */
+const PW_TO_DEFAULT = 'BO IP Provisioning <bo-ip-pro@ericsson.com>; Apichai Passadu <Apichai_Pas@truecorp.co.th>; Thaweesak Aiemnu <thaweesak_aie@truecorp.co.th>; PW Control Team <pwcontrolteam@truecorp.co.th>; ANTS <ants@truecorp.co.th>; BBTS <bbts@truecorp.co.th>; Nahathai Jurasatean <nahathai_ram@truecorp.co.th>; True-MS-TH Change Management <true-ms-th.change.management@ericsson.com>; BOGIS <bogis@ericsson.com>; Wasupol Larmahasak <wasupol.larmahasak@ericsson.com>';
+const PW_CC_DEFAULT = 'Theerameth Sirawannapat <Theerameth_Sir@truecorp.co.th>; DPO-FIX <dpo-fix@ericsson.com>; NSA-Team <nsa-team@truecorp.co.th>; Ornjira Wongchirung <Ornjira_Won@truecorp.co.th>; Chaiwat Thanmak <Chaiwat_Tha@truecorp.co.th>; Aritaj Chaiwattanasak <aritaj.chaiwattanasak@ericsson.com>; Suwadee Chattong <suwadee_cha@truecorp.co.th>; Wasupol Larmahasak <wasupol.larmahasak@ericsson.com>';
+const PW_TYPES = [
+  {v:'olt', label:'Change up link OLT'},
+  {v:'swap', label:'Swap Olt'},
+  {v:'offnode', label:'Off Node'},
+];
+// value matches the Planwork "Day/Night Time" column (dnType: 'Day' | 'Night') so the
+// period picker doubles as the filter for which Planwork records are selectable
+const PW_PERIODS = [
+  {v:'day', label:'DayTime', range:'09:00-20:59', dnType:'Day'},
+  {v:'night', label:'NightTime', range:'21:00-08:59', dnType:'Night'},
+];
+let pwNotifyState = null; // { type, period, planworkSelected:Set<planworkId>, planworkTodayOnly, to, cc }
+
+function pwPlanworkPool(){
+  let list = state.planworks.slice();
+  if(pwNotifyState.planworkTodayOnly){ const today = fmtDate(new Date()); list = list.filter(p=>p.date===today); }
+  const wantDn = (PW_PERIODS.find(p=>p.v===pwNotifyState.period)||PW_PERIODS[0]).dnType;
+  list = list.filter(p=> !p.dnType || p.dnType===wantDn); // Planwork with no Day/Night set isn't excluded
+  return list.sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+}
+
+// drop any selected Planwork ids that no longer match the current filters (date / Day-Night)
+function pwPruneSelection(){
+  const validIds = new Set(pwPlanworkPool().map(p=>p.id));
+  pwNotifyState.planworkSelected.forEach(id=>{ if(!validIds.has(id)) pwNotifyState.planworkSelected.delete(id); });
+}
+
+function pwAllItems(){
+  return pwPlanworkPool()
+    .filter(p=> pwNotifyState.planworkSelected.has(p.id))
+    .map(p=> ({ cr: p.planNo||'(ไม่ระบุ)', prod: p.detail||'', key:p.id }));
+}
+
+function pwSubjectText(){
+  const type = PW_TYPES.find(t=>t.v===pwNotifyState.type) || PW_TYPES[0];
+  const period = PW_PERIODS.find(p=>p.v===pwNotifyState.period) || PW_PERIODS[0];
+  return `Update ${type.label} ${dmy(fmtDate(new Date()))} ${period.label} ${pwAllItems().length} CR PW`;
+}
+
+function pwBodyText(){
+  const type = PW_TYPES.find(t=>t.v===pwNotifyState.type) || PW_TYPES[0];
+  const items = pwAllItems();
+  let planworkLines;
+  if(!items.length){
+    planworkLines = [`Planwork - ${type.label}  (0 รายการ)`, '[ยังไม่ได้เพิ่ม CR]'];
+  } else {
+    const col1 = Math.max(...items.map(i=>i.cr.length)) + 3;
+    planworkLines = [
+      `Planwork - ${type.label}  (${items.length} รายการ)`,
+      ...items.map(it=> it.cr.padEnd(col1) + it.prod),
+    ];
+  }
+  return [
+    'Dear All,',
+    ...planworkLines,
+    'Dear K. Thaweesak',
+    '      Please update OLT/Dslam',
+    'Dear K. Duangdao',
+    '      Please update OLT UPC file',
+    'Dear DPO-FIX',
+    '      Please update MPLS circuits',
+    'Dear DPO-Fix (K.Wasupol)',
+    '      Please update MANE',
+    'Dear Express Provisioning Team',
+    '      Please update qrun',
+    'Update',
+  ].join('\n');
+}
+
+function openPwNotifyDialog(){
+  pwNotifyState = { type:'olt', period:'day', planworkSelected:new Set(), planworkTodayOnly:true, to:PW_TO_DEFAULT, cc:PW_CC_DEFAULT };
+  renderPwNotifyDialog();
+}
+
+function renderPwNotifyDialog(){
+  const dlg = document.getElementById('dlg');
+  const pool = pwPlanworkPool();
+  const periodLabel = (PW_PERIODS.find(p=>p.v===pwNotifyState.period)||PW_PERIODS[0]).label;
+  const planworkChecklistHtml = pool.length? pool.map(p=>`
+      <label style="display:flex; align-items:flex-start; justify-content:flex-start; gap:8px; padding:5px 2px; font-size:13px; cursor:pointer; width:100%; max-width:100%; box-sizing:border-box; text-align:left; direction:ltr;">
+        <input type="checkbox" class="pw-plan-chk" value="${p.id}" ${pwNotifyState.planworkSelected.has(p.id)?'checked':''} style="width:auto; margin-top:3px; flex:0 0 auto;">
+        <span style="flex:1 1 0%; min-width:0; max-width:100%; overflow-wrap:anywhere; word-break:break-word; text-align:left;">
+          <b>${p.planNo||'(ไม่ระบุ)'}</b> — ${p.detail? (p.detail.length>70? p.detail.slice(0,70)+'…' : p.detail) : '-'}
+          <div class="mono" style="color:var(--slate-400); font-size:11px;">${dmy(p.date)}${p.dnType? ' · '+p.dnType : ''}</div>
+        </span>
+      </label>`).join('')
+    : `<div class="empty" style="padding:4px 2px; font-size:12.5px;">ไม่มี Planwork ${periodLabel}${pwNotifyState.planworkTodayOnly? 'วันนี้':''}</div>`;
+
+  const items = pwAllItems();
+  const itemsHtml = items.length
+    ? items.map(it=>`
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px; padding:5px 2px; font-size:12.5px; border-bottom:1px solid var(--line);">
+          <div style="min-width:0; overflow-wrap:anywhere;"><b>${it.cr}</b> — ${it.prod||'-'}</div>
+          <button class="btn btn-ghost btn-sm" type="button" data-pwremove="${it.key}" style="flex:0 0 auto;">✕ ลบ</button>
+        </div>`).join('')
+    : `<div class="empty" style="padding:4px 2px; font-size:12.5px;">ยังไม่ได้เลือกรายการ (ติ๊กเลือกจาก Planwork ด้านบน)</div>`;
+
+  dlg.innerHTML = `
+    <div class="dialog-head"><h3>แจ้ง PW Change up link OLT / Swap Olt / Off Node</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+    <div class="dialog-body">
+      <div class="pill-tabs">
+        ${PW_TYPES.map(t=>`<div class="pill-tab ${pwNotifyState.type===t.v?'active':''}" data-pwtype="${t.v}">${t.label}</div>`).join('')}
+      </div>
+
+      <div class="field">
+        <label>เลือกจาก Planwork ที่มีอยู่ (ใช้ Planwork_No เป็น CR Number และ Detail เป็น PROD Code)</label>
+        <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; margin:4px 0 8px 0;">
+          <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+            <span style="font-size:12.5px; font-weight:600; color:var(--navy-800); white-space:nowrap;">ช่วงเวลา</span>
+            <select id="pwPeriod" style="width:auto;">${PW_PERIODS.map(p=>`<option value="${p.v}" ${pwNotifyState.period===p.v?'selected':''}>${p.label} (${p.range})</option>`).join('')}</select>
+          </div>
+          <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:500; cursor:pointer; white-space:nowrap; flex-shrink:0;">
+            <input type="checkbox" id="pwTodayOnly" style="width:auto;" ${pwNotifyState.planworkTodayOnly?'checked':''}> แสดงเฉพาะวันนี้
+          </label>
+          <div style="display:flex; gap:6px; flex-shrink:0; margin-left:auto;">
+            <button class="btn btn-ghost btn-sm" id="pwSelectAll" type="button">เลือกทั้งหมด</button>
+            <button class="btn btn-ghost btn-sm" id="pwClearAll" type="button">ล้างการเลือก</button>
+          </div>
+        </div>
+        <div style="border:1px solid var(--line); border-radius:8px; max-height:150px; overflow-y:auto; overflow-x:hidden; padding:6px 8px; box-sizing:border-box;">
+          ${planworkChecklistHtml}
+        </div>
+      </div>
+
+      <div class="field">
+        <label>รายการที่จะแจ้ง (${items.length} CR)</label>
+        <div style="border:1px solid var(--line); border-radius:8px; max-height:160px; overflow-y:auto; overflow-x:hidden; box-sizing:border-box;">
+          ${itemsHtml}
+        </div>
+      </div>
+
+      <div class="field"><label>ถึง (To)</label><textarea id="pwTo" rows="2">${pwNotifyState.to}</textarea></div>
+      <div class="field"><label>สำเนา (Cc)</label><textarea id="pwCc" rows="2">${pwNotifyState.cc}</textarea></div>
+      <div class="field"><label>หัวข้อ (Subject)</label><input id="pwSubject" value="${pwSubjectText()}"></div>
+      <div class="field"><label>เนื้อหา (Body)</label><textarea id="pwBody" rows="9">${pwBodyText()}</textarea></div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-ghost" id="pwCopyBody" type="button">คัดลอกเนื้อหา</button>
+      <button class="btn" id="pwOpenMail" type="button" style="background:var(--green); color:#fff;">✉ เปิดในอีเมล</button>
+    </div>
+  `;
+  dlg.showModal();
+  bindPwNotifyDialogEvents();
+}
+
+function bindPwNotifyDialogEvents(){
+  const dlg = document.getElementById('dlg');
+  const captureEditable = ()=>{
+    pwNotifyState.to = dlg.querySelector('#pwTo').value;
+    pwNotifyState.cc = dlg.querySelector('#pwCc').value;
+  };
+
+  dlg.querySelector('#dlgClose').onclick = ()=> dlg.close();
+
+  dlg.querySelectorAll('[data-pwtype]').forEach(el=>{
+    el.onclick = ()=>{ captureEditable(); pwNotifyState.type = el.dataset.pwtype; renderPwNotifyDialog(); };
+  });
+
+  const periodSel = dlg.querySelector('#pwPeriod');
+  if(periodSel) periodSel.onchange = ()=>{
+    captureEditable();
+    pwNotifyState.period = periodSel.value;
+    pwPruneSelection(); // switching Day/Night changes which Planwork are selectable
+    renderPwNotifyDialog();
+  };
+
+  const todayChk = dlg.querySelector('#pwTodayOnly');
+  if(todayChk) todayChk.onchange = ()=>{
+    captureEditable();
+    pwNotifyState.planworkTodayOnly = todayChk.checked;
+    pwPruneSelection();
+    renderPwNotifyDialog();
+  };
+
+  dlg.querySelectorAll('.pw-plan-chk').forEach(chk=>{
+    chk.onchange = ()=>{
+      captureEditable();
+      if(chk.checked) pwNotifyState.planworkSelected.add(chk.value);
+      else pwNotifyState.planworkSelected.delete(chk.value);
+      renderPwNotifyDialog();
+    };
+  });
+
+  const selAllBtn = dlg.querySelector('#pwSelectAll');
+  if(selAllBtn) selAllBtn.onclick = ()=>{ captureEditable(); pwPlanworkPool().forEach(p=> pwNotifyState.planworkSelected.add(p.id)); renderPwNotifyDialog(); };
+  const clearBtn = dlg.querySelector('#pwClearAll');
+  if(clearBtn) clearBtn.onclick = ()=>{ captureEditable(); pwNotifyState.planworkSelected.clear(); renderPwNotifyDialog(); };
+
+  dlg.querySelectorAll('[data-pwremove]').forEach(el=>{
+    el.onclick = ()=>{
+      captureEditable();
+      pwNotifyState.planworkSelected.delete(el.dataset.pwremove);
+      renderPwNotifyDialog();
+    };
+  });
+
+  const copyBtn = dlg.querySelector('#pwCopyBody');
+  if(copyBtn) copyBtn.onclick = async ()=>{
+    try{ await navigator.clipboard.writeText(dlg.querySelector('#pwBody').value); copyBtn.textContent='คัดลอกแล้ว ✓'; setTimeout(()=>copyBtn.textContent='คัดลอกเนื้อหา', 1500); }
+    catch(e){ alert('คัดลอกไม่สำเร็จ กรุณาเลือกข้อความด้วยตนเอง'); }
+  };
+
+  const openMailBtn = dlg.querySelector('#pwOpenMail');
+  if(openMailBtn) openMailBtn.onclick = ()=>{
+    const to = dlg.querySelector('#pwTo').value.trim();
+    const cc = dlg.querySelector('#pwCc').value.trim();
+    const subject = dlg.querySelector('#pwSubject').value;
+    const body = dlg.querySelector('#pwBody').value;
+    window.location.href = buildMailtoLink(to, cc, subject, body);
+  };
+}
+
+function openPlanworkDialog(existing){
+  const dlg = document.getElementById('dlg');
+  dlg.innerHTML = `
+    <div class="dialog-head"><h3>${existing?'แก้ไข Planwork':'เพิ่ม Planwork'}</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+    <div class="dialog-body">
+      <div class="field-row">
+        <div class="field"><label>D/M/Y</label><input type="date" id="f_date" value="${existing? existing.date : fmtDate(new Date())}"></div>
+        <div class="field"><label>Day/Night Time</label>
+          <div style="display:flex; gap:6px;">
+            <select id="f_dntype" style="flex:0 0 90px;">
+              <option value="Day" ${existing&&existing.dnType==='Day'?'selected':''}>Day</option>
+              <option value="Night" ${existing&&existing.dnType==='Night'?'selected':''}>Night</option>
+            </select>
+            <input id="f_dntime" placeholder="เช่น 09:00-12:00" value="${existing? existing.dnTime||'':''}">
+          </div>
+        </div>
+      </div>
+      <div class="field"><label>Planwork_No</label><input id="f_planno" value="${existing? existing.planNo||'':''}" placeholder="เลขที่ Planwork"></div>
+      <div class="field"><label>Detail</label><textarea id="f_detail" rows="2" placeholder="รายละเอียดงาน">${existing? existing.detail||'':''}</textarea></div>
+      <div class="field-row">
+        <div class="field"><label>Node/MPLS</label><input id="f_node" value="${existing? existing.node||'':''}" placeholder="ชื่อ Node / MPLS"></div>
+        <div class="field"><label>Referance</label><input id="f_ref" value="${existing? existing.reference||'':''}" placeholder="เลขที่อ้างอิง"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Assingment By</label><select id="f_assign"></select></div>
+        <div class="field"><label>Work Type</label><input id="f_wtype" value="${existing? existing.workType||'':''}" placeholder="เช่น Install / PM / Migration"></div>
+      </div>
+      <div class="field"><label>Vender</label><input id="f_vendor" value="${existing? existing.vendor||'':''}" placeholder="ชื่อ Vendor"></div>
+      <div class="field"><label>ReMark</label><textarea id="f_remark" rows="2" placeholder="หมายเหตุ">${existing? existing.remark||'':''}</textarea></div>
+      <div class="field"><label>ReMark Mail</label><textarea id="f_remarkmail" rows="2" placeholder="หมายเหตุสำหรับแจ้งอีเมล">${existing? existing.remarkMail||'':''}</textarea></div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-ghost" id="dlgCancel">ยกเลิก</button>
+      <button class="btn btn-amber" id="savePlanwork">บันทึก</button>
+    </div>
+  `;
+  dlg.showModal();
+  dlg.querySelector('#dlgClose').onclick=()=>dlg.close();
+  dlg.querySelector('#dlgCancel').onclick=()=>dlg.close();
+
+  const dateInput = dlg.querySelector('#f_date');
+  const assignSelect = dlg.querySelector('#f_assign');
+  function refreshAssignOptions(){
+    const names = getOnDutyNamesForDate(dateInput.value, 'MPLS');
+    // if editing and the saved value isn't in today's on-duty list (e.g. imported from
+    // Excel, or the roster changed since), keep it as an extra option so it isn't lost
+    const keepExisting = existing && existing.assignBy && !names.includes(existing.assignBy) ? existing.assignBy : null;
+    const optionNames = keepExisting ? [keepExisting, ...names] : names;
+    if(!optionNames.length){
+      assignSelect.innerHTML = `<option value="">(ไม่มีคนอยู่เวร MPLS วันนี้)</option>`;
+      return;
+    }
+    const wanted = assignSelect.dataset.touched ? assignSelect.value : (existing? existing.assignBy||optionNames[0] : optionNames[0]);
+    assignSelect.innerHTML = optionNames.map(n=>`<option value="${n}">${n}</option>`).join('');
+    assignSelect.value = optionNames.includes(wanted) ? wanted : optionNames[0];
+  }
+  refreshAssignOptions(); // new entries default to the first MPLS on-duty person for the selected date
+  dateInput.addEventListener('change', refreshAssignOptions);
+  assignSelect.addEventListener('change', ()=> assignSelect.dataset.touched = '1');
+
+  dlg.querySelector('#savePlanwork').onclick = async ()=>{
+    const planNo = dlg.querySelector('#f_planno').value.trim();
+    if(!planNo){ alert('กรุณากรอก Planwork_No'); return; }
+    const data = {
+      date: dlg.querySelector('#f_date').value || fmtDate(new Date()),
+      dnType: dlg.querySelector('#f_dntype').value,
+      dnTime: dlg.querySelector('#f_dntime').value.trim(),
+      planNo,
+      detail: dlg.querySelector('#f_detail').value.trim(),
+      node: dlg.querySelector('#f_node').value.trim(),
+      reference: dlg.querySelector('#f_ref').value.trim(),
+      assignBy: dlg.querySelector('#f_assign').value.trim(),
+      workType: dlg.querySelector('#f_wtype').value.trim(),
+      vendor: dlg.querySelector('#f_vendor').value.trim(),
+      remark: dlg.querySelector('#f_remark').value.trim(),
+      remarkMail: dlg.querySelector('#f_remarkmail').value.trim(),
+    };
+    if(existing){ Object.assign(existing, data); }
+    else { state.planworks.push({id:uid(), ...data}); }
+    await saveList('planworks', state.planworks);
+    dlg.close(); renderContent();
+  };
+}
+
+// one-time cleanup for Planwork records saved before the Assingment By dropdown existed,
+// back when it auto-filled with every on-duty name for the day joined by commas
+// (e.g. "Mongkol, Panya, Seksan") instead of just the MPLS person
+async function fixLegacyAssignBy(){
+  const affected = state.planworks.filter(p=> p.assignBy && p.assignBy.includes(','));
+  if(!affected.length){ alert('ไม่พบรายการที่ Assingment By มีชื่อรวมหลายคน (คั่นด้วยจุลภาค) ให้แก้ไข'); return; }
+  if(!confirm(`พบ ${affected.length} รายการที่ Assingment By เป็นชื่อรวมหลายคน (เช่น "Mongkol, Panya, Seksan")\n\nจะแก้ให้เหลือเฉพาะชื่อคนอยู่เวร MPLS ของวันนั้นแทน ต้องการดำเนินการหรือไม่?`)) return;
+
+  let changed = 0, skipped = 0;
+  affected.forEach(p=>{
+    const mplsNames = getOnDutyNamesForDate(p.date, 'MPLS');
+    if(mplsNames.length){ p.assignBy = mplsNames[0]; changed++; }
+    else skipped++; // no MPLS on-duty info for that date — leave the record untouched
+  });
+  await saveList('planworks', state.planworks);
+  alert(`แก้ไขแล้ว ${changed} รายการ${skipped? ` (ข้าม ${skipped} รายการที่หาคนอยู่เวร MPLS ของวันนั้นไม่เจอ)`:''}`);
+  renderContent();
+}
+
+/* ---------------- Excel import for Planwork ---------------- */
+const PW_HEADER_MAP = {
+  'dmy':'date', 'date':'date',
+  'daynighttime':'dnRaw', 'daynight':'dnRaw', 'time':'dnRaw',
+  'planworkno':'planNo', 'planwork_no':'planNo', 'planno':'planNo',
+  'detail':'detail',
+  'nodempls':'node', 'node':'node', 'mpls':'node',
+  'referance':'reference', 'reference':'reference',
+  'assingmentby':'assignBy', 'assignmentby':'assignBy', 'assignby':'assignBy',
+  'worktype':'workType',
+  'vender':'vendor', 'vendor':'vendor',
+  'remark':'remark',
+  'remarkmail':'remarkMail',
+};
+function normHeader(s){ return String(s||'').trim().toLowerCase().replace(/[^a-z0-9]/g,''); }
+
+function excelSerialToISO(serial){
+  const utcDays = Math.floor(serial - 25569);
+  const utcMs = utcDays*86400*1000;
+  const d = new Date(utcMs);
+  const p = n=>String(n).padStart(2,'0');
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())}`;
+}
+function parseFlexibleDate(v){
+  if(v===null || v===undefined || v==='') return '';
+  if(typeof v === 'number') return excelSerialToISO(v);
+  const s = String(v).trim();
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if(m){
+    let [, d, mo, y] = m;
+    if(y.length===2) y = (Number(y) < 50 ? '20' : '19') + y;
+    return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
+  }
+  return '';
+}
+
+async function handleExcelImport(file){
+  const statusEl = document.getElementById('pwImportStatus');
+  if(statusEl) statusEl.innerHTML = `<div class="banner">⏳ กำลังอ่านไฟล์ ${file.name} ...</div>`;
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array', cellDates:false});
+    const sheetName = wb.SheetNames[0];
+    const sheet = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:''});
+    if(!rows.length){ throw new Error('ไม่พบข้อมูลในไฟล์'); }
+
+    const headerRow = rows[0];
+    const colMap = {}; // colIndex -> fieldKey
+    headerRow.forEach((h, idx)=>{
+      const key = PW_HEADER_MAP[normHeader(h)];
+      if(key) colMap[idx] = key;
+    });
+    if(Object.keys(colMap).length===0){ throw new Error('ไม่พบคอลัมน์ที่ตรงกับหัวตารางที่รองรับ กรุณาตรวจสอบแถวแรกของไฟล์'); }
+
+    let imported = 0, skipped = 0;
+    for(let r=1; r<rows.length; r++){
+      const row = rows[r];
+      if(!row || row.every(c=>c===''||c===undefined||c===null)){ continue; }
+      const rec = {date:'', dnType:'Day', dnTime:'', planNo:'', detail:'', node:'', reference:'', assignBy:'', workType:'', vendor:'', remark:'', remarkMail:''};
+      Object.entries(colMap).forEach(([idx, key])=>{
+        const val = row[Number(idx)];
+        if(key==='date') rec.date = parseFlexibleDate(val);
+        else if(key==='dnRaw'){
+          const raw = String(val||'').trim();
+          rec.dnTime = raw;
+          rec.dnType = /night/i.test(raw) ? 'Night' : 'Day';
+        } else {
+          rec[key] = String(val===undefined||val===null? '' : val).trim();
+        }
+      });
+      const hasContent = rec.planNo || rec.detail || rec.node || rec.reference || rec.vendor;
+      if(!hasContent){ skipped++; continue; }
+      if(!rec.assignBy && rec.date){
+        const names = getOnDutyNamesForDate(rec.date, 'MPLS');
+        if(names.length) rec.assignBy = names[0];
+      }
+      state.planworks.push({id:uid(), ...rec});
+      imported++;
+    }
+    await saveList('planworks', state.planworks);
+    if(statusEl) statusEl.innerHTML = `<div class="banner">✅ นำเข้าสำเร็จ ${imported} รายการ${skipped? ` (ข้ามแถวว่าง ${skipped} แถว)`:''}</div>`;
+    renderContent();
+  }catch(err){
+    console.error(err);
+    if(statusEl) statusEl.innerHTML = `<div class="banner" style="background:var(--red-dim); color:#8a1f1f;">⚠ นำเข้าไม่สำเร็จ: ${err.message||err}</div>`;
+  }
+}
+
+/* ================= OT ================= */
+function viewOT(){
+  const y = state.otYear, m = state.otMonth;
+  const monthEntries = state.otEntries.filter(o=>{
+    const d = new Date(o.date+'T00:00:00'); return d.getFullYear()===y && d.getMonth()===m;
+  });
+  const totals = {};
+  const weightedTotals = {};
+  monthEntries.forEach(o=>{
+    const mult = Number(o.multiplier||1);
+    totals[o.employeeId] = (totals[o.employeeId]||0) + Number(o.hours||0);
+    weightedTotals[o.employeeId] = (weightedTotals[o.employeeId]||0) + Number(o.hours||0)*mult;
+  });
+  const monthNames=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+
+  return `
+    <div class="topbar">
+      <div><h1>ชั่วโมง OT</h1><div class="sub">บันทึกและสรุปชั่วโมงทำงานล่วงเวลารายเดือน</div></div>
+      <button class="btn btn-amber" id="addOT">+ บันทึก OT</button>
+    </div>
+    <div class="weeknav" style="margin-bottom:14px;">
+      <button class="btn btn-ghost btn-sm" id="prevOTMonth">←</button>
+      <div class="lbl mono">${monthNames[m]} ${y+543}</div>
+      <button class="btn btn-ghost btn-sm" id="nextOTMonth">→</button>
+    </div>
+
+    <div class="card">
+      <h3>สรุปชั่วโมง OT รายบุคคล <span class="hint">${monthNames[m]} ${y+543}</span></h3>
+      ${state.employees.length? `
+      <table>
+        <thead><tr><th>พนักงาน</th><th>รวมชั่วโมง OT</th><th>Remark</th></tr></thead>
+        <tbody>
+          ${state.employees.map(e=>{
+            const empEntries = monthEntries.filter(o=>o.employeeId===e.id).sort((a,b)=>a.date.localeCompare(b.date));
+            const remark = empEntries.map(o=>{
+              const d = new Date(o.date+'T00:00:00');
+              const mult = Number(o.multiplier||1);
+              return `${d.getDate()}/${d.getMonth()+1} (${Number(o.hours).toFixed(1)} x ${mult})`;
+            }).join('<br>');
+            return `<tr><td>${e.name}</td><td class="mono" style="font-weight:700;">${(totals[e.id]||0).toFixed(1)} ชม.</td><td style="font-size:12.5px; color:#1F6B3A; font-family:'IBM Plex Mono',monospace;">${remark||'-'}</td></tr>`;
+          }).join('')}
+        </tbody>
+      </table>` : `<div class="empty">ยังไม่มีพนักงานในระบบ</div>`}
+    </div>
+
+    <div class="card">
+      <h3>รายการบันทึก OT</h3>
+      ${monthEntries.length? `
+      <table>
+        <thead><tr><th>วันที่</th><th>พนักงาน</th><th>ชั่วโมง</th><th>อัตราคูณ</th><th>ชั่วโมงเทียบเท่า</th><th>เหตุผล</th><th></th></tr></thead>
+        <tbody>
+          ${monthEntries.sort((a,b)=>a.date.localeCompare(b.date)).map(o=>{
+            const mult = Number(o.multiplier||1);
+            return `
+            <tr>
+              <td class="mono">${thaiDate(o.date)}</td>
+              <td>${empName(o.employeeId)}</td>
+              <td class="mono">${Number(o.hours).toFixed(1)}</td>
+              <td class="mono">x${mult}</td>
+              <td class="mono" style="font-weight:700;">${(Number(o.hours)*mult).toFixed(1)}</td>
+              <td>${o.reason||'-'}</td>
+              <td><button class="btn btn-danger btn-sm" data-delot="${o.id}">ลบ</button></td>
+            </tr>`;}).join('')}
+        </tbody>
+      </table>` : `<div class="empty">ยังไม่มีบันทึก OT ในเดือนนี้</div>`}
+    </div>
+  `;
+}
+
+function openOTDialog(){
+  const dlg = document.getElementById('dlg');
+  const empOptions = state.employees.map(e=>`<option value="${e.id}">${e.name}</option>`).join('');
+  dlg.innerHTML = `
+    <div class="dialog-head"><h3>บันทึกชั่วโมง OT</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+    <div class="dialog-body">
+      <div class="field"><label>พนักงาน</label><select id="f_emp">${empOptions}</select></div>
+      <div class="field-row">
+        <div class="field"><label>วันที่</label><input type="date" id="f_date" value="${fmtDate(new Date())}"></div>
+        <div class="field"><label>จำนวนชั่วโมง</label><input type="number" step="0.5" min="0" id="f_hours" placeholder="เช่น 2.5"></div>
+      </div>
+      <div class="field"><label>อัตราคูณ (คูณแรง)</label>
+        <select id="f_multiplier">
+          <option value="1">x1</option>
+          <option value="1.5">x1.5</option>
+          <option value="3">x3</option>
+        </select>
+      </div>
+      <div class="field"><label>เหตุผล / งานที่ทำ</label><textarea id="f_reason" rows="2" placeholder="รายละเอียดงานล่วงเวลา"></textarea></div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-ghost" id="dlgCancel">ยกเลิก</button>
+      <button class="btn btn-amber" id="saveOT">บันทึก</button>
+    </div>
+  `;
+  dlg.showModal();
+  dlg.querySelector('#dlgClose').onclick=()=>dlg.close();
+  dlg.querySelector('#dlgCancel').onclick=()=>dlg.close();
+  dlg.querySelector('#saveOT').onclick = async ()=>{
+    const employeeId = dlg.querySelector('#f_emp').value;
+    const hours = Number(dlg.querySelector('#f_hours').value);
+    if(!employeeId || !hours){ alert('กรุณาเลือกพนักงานและกรอกจำนวนชั่วโมง'); return; }
+    state.otEntries.push({
+      id:uid(), employeeId, date: dlg.querySelector('#f_date').value,
+      hours, multiplier: Number(dlg.querySelector('#f_multiplier').value),
+      reason: dlg.querySelector('#f_reason').value.trim()
+    });
+    await saveList('ot-entries', state.otEntries);
+    dlg.close(); renderContent();
+  };
+}
+
+/* ================= LEAVE ================= */
+function viewLeave(){
+  const y = state.leaveYear, m = state.leaveMonth;
+  const nd = daysInMonth(y,m);
+  const monthNames=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  const monthStart = `${y}-${String(m+1).padStart(2,'0')}-01`;
+  const monthEnd = `${y}-${String(m+1).padStart(2,'0')}-${String(nd).padStart(2,'0')}`;
+
+  const headerDays = [...Array(nd)].map((_,i)=>{
+    const d = new Date(y,m,i+1);
+    return `<div class="leave-header-day">${i+1}</div>`;
+  }).join('');
+
+  const rows = state.employees.map(e=>{
+    const leavesForEmp = state.leaves.filter(l=> l.employeeId===e.id && l.start<=monthEnd && l.end>=monthStart);
+    const dayDivs = [...Array(nd)].map((_,i)=>{
+      const d = new Date(y,m,i+1); const isWeekend = d.getDay()===0||d.getDay()===6;
+      return `<div class="leave-day ${isWeekend?'weekend':''}"></div>`;
+    }).join('');
+    const bars = leavesForEmp.map(l=>{
+      const s = l.start < monthStart? monthStart : l.start;
+      const en = l.end > monthEnd? monthEnd : l.end;
+      const startDay = Number(s.slice(8,10));
+      const endDay = Number(en.slice(8,10));
+      const leftPct = ((startDay-1)/nd)*100;
+      const widthPct = ((endDay-startDay+1)/nd)*100;
+      const color = LEAVE_COLORS[l.type] || '#8A97AC';
+      return `<div class="leave-bar" title="${l.type} (${l.start} - ${l.end}) ${l.note||''}" style="left:${leftPct}%; width:${widthPct}%; background:${color};">${l.type}</div>`;
+    }).join('');
+    return `<div class="leave-row">
+      <div class="leave-name">${e.name}</div>
+      <div class="leave-days" style="--ndays:${nd};">${dayDivs}${bars}</div>
+    </div>`;
+  }).join('');
+
+  const upcoming = state.leaves.slice().sort((a,b)=>a.start.localeCompare(b.start));
+
+  return `
+    <div class="topbar">
+      <div><h1>ตารางแสดงคนลา</h1><div class="sub">ภาพรวมวันลาของพนักงานทั้งทีมแบบรายเดือน</div></div>
+      <button class="btn btn-amber" id="addLeave">+ บันทึกวันลา</button>
+    </div>
+    <div class="weeknav" style="margin-bottom:14px;">
+      <button class="btn btn-ghost btn-sm" id="prevLeaveMonth">←</button>
+      <div class="lbl mono">${monthNames[m]} ${y+543}</div>
+      <button class="btn btn-ghost btn-sm" id="nextLeaveMonth">→</button>
+    </div>
+
+    <div class="card" style="overflow-x:auto;">
+      ${state.employees.length? `
+      <div class="leave-grid" style="min-width:${Math.max(600, nd*26)}px;">
+        <div></div><div class="leave-header-days" style="--ndays:${nd};">${headerDays}</div>
+        ${rows}
+      </div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--slate-400); margin-top:12px;">
+        ${LEAVE_TYPES.map(t=>`<div style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:3px;background:${LEAVE_COLORS[t]};display:inline-block;"></span>${t}</div>`).join('')}
+      </div>
+      ` : `<div class="empty">ยังไม่มีพนักงานในระบบ</div>`}
+    </div>
+
+    <div class="card">
+      <h3>รายการวันลาทั้งหมด</h3>
+      ${upcoming.length? `
+      <table>
+        <thead><tr><th>พนักงาน</th><th>ประเภท</th><th>ช่วงวันที่</th><th>หมายเหตุ</th><th></th></tr></thead>
+        <tbody>
+          ${upcoming.map(l=>`
+            <tr>
+              <td>${empName(l.employeeId)}</td>
+              <td><span class="badge leavetype" style="background:${LEAVE_COLORS[l.type]}22; color:${LEAVE_COLORS[l.type]};">${l.type}</span></td>
+              <td class="mono">${l.start} → ${l.end}${l.timeStart? `<br><span style="color:var(--slate-400); font-size:11px;">${l.timeStart}-${l.timeEnd}</span>`:''}</td>
+              <td>${l.note||'-'}</td>
+              <td style="white-space:nowrap;">
+                <button class="btn btn-ghost btn-sm" data-editleave="${l.id}">แก้ไข</button>
+                <button class="btn btn-danger btn-sm" data-delleave="${l.id}">ลบ</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>` : `<div class="empty">ยังไม่มีข้อมูลวันลา</div>`}
+    </div>
+  `;
+}
+
+function openLeaveDialog(existing){
+  const dlg = document.getElementById('dlg');
+  const empOptions = state.employees.map(e=>`<option value="${e.id}" ${existing&&existing.employeeId===e.id?'selected':''}>${e.name}</option>`).join('');
+  dlg.innerHTML = `
+    <div class="dialog-head"><h3>${existing?'แก้ไขวันลา':'บันทึกวันลา'}</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+    <div class="dialog-body">
+      <div class="field"><label>พนักงาน</label><select id="f_emp">${empOptions}</select></div>
+      <div class="field"><label>ประเภทการลา</label><select id="f_type">${LEAVE_TYPES.map(t=>`<option ${existing&&existing.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="field-row">
+        <div class="field"><label>วันที่เริ่ม</label><input type="date" id="f_start" value="${existing? existing.start : fmtDate(new Date())}"></div>
+        <div class="field"><label>วันที่สิ้นสุด</label><input type="date" id="f_end" value="${existing? existing.end : fmtDate(new Date())}"></div>
+      </div>
+      <div class="field"><label>ช่วงเวลา (ถ้าลาไม่เต็มวัน)</label>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span style="font-size:12px; color:var(--slate-400); min-width:56px;">เริ่ม</span>
+          <select id="f_leave_start_h" style="flex:1; min-width:64px;"><option value="">ไม่ระบุ</option>${Array.from({length:24},(_,h)=>String(h).padStart(2,'0')).map(h=>`<option value="${h}" ${existing&&existing.timeStart&&existing.timeStart.split(':')[0]===h?'selected':''}>${h}</option>`).join('')}</select>
+          <span style="font-weight:700;">:</span>
+          <select id="f_leave_start_m" style="flex:1; min-width:64px;"><option value="">-</option>${Array.from({length:60},(_,m)=>String(m).padStart(2,'0')).map(m=>`<option value="${m}" ${existing&&existing.timeStart&&existing.timeStart.split(':')[1]===m?'selected':''}>${m}</option>`).join('')}</select>
+          <span style="font-weight:700; padding:0 4px;">–</span>
+          <span style="font-size:12px; color:var(--slate-400); min-width:56px;">ถึง</span>
+          <select id="f_leave_end_h" style="flex:1; min-width:64px;"><option value="">ไม่ระบุ</option>${Array.from({length:24},(_,h)=>String(h).padStart(2,'0')).map(h=>`<option value="${h}" ${existing&&existing.timeEnd&&existing.timeEnd.split(':')[0]===h?'selected':''}>${h}</option>`).join('')}</select>
+          <span style="font-weight:700;">:</span>
+          <select id="f_leave_end_m" style="flex:1; min-width:64px;"><option value="">-</option>${Array.from({length:60},(_,m)=>String(m).padStart(2,'0')).map(m=>`<option value="${m}" ${existing&&existing.timeEnd&&existing.timeEnd.split(':')[1]===m?'selected':''}>${m}</option>`).join('')}</select>
+        </div>
+        <div style="font-size:11px; color:var(--slate-400); margin-top:4px;">เว้นว่างไว้หากลาเต็มวัน — กรอกเฉพาะกรณีลาบางช่วงเวลา เช่น ลาครึ่งวัน</div>
+      </div>
+      <div class="field"><label>หมายเหตุ</label><textarea id="f_note" rows="2" placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)">${existing? existing.note||'':''}</textarea></div>
+    </div>
+    <div class="dialog-foot">
+      ${existing? `<button class="btn btn-danger" id="deleteLeaveInline">ลบ</button>` : ''}
+      <button class="btn btn-ghost" id="dlgCancel">ยกเลิก</button>
+      <button class="btn btn-amber" id="saveLeave">บันทึก</button>
+    </div>
+  `;
+  dlg.showModal();
+  dlg.querySelector('#dlgClose').onclick=()=>dlg.close();
+  dlg.querySelector('#dlgCancel').onclick=()=>dlg.close();
+  if(existing){
+    dlg.querySelector('#deleteLeaveInline').onclick = async ()=>{
+      if(!confirm('ลบวันลานี้ใช่หรือไม่?')) return;
+      state.leaves = state.leaves.filter(l=>l.id!==existing.id);
+      await saveList('leaves', state.leaves);
+      dlg.close(); renderContent();
+    };
+  }
+  dlg.querySelector('#saveLeave').onclick = async ()=>{
+    const employeeId = dlg.querySelector('#f_emp').value;
+    const start = dlg.querySelector('#f_start').value;
+    const end = dlg.querySelector('#f_end').value;
+    if(!employeeId || !start || !end || end<start){ alert('กรุณาตรวจสอบวันที่ให้ถูกต้อง'); return; }
+    const sh = dlg.querySelector('#f_leave_start_h').value, sm = dlg.querySelector('#f_leave_start_m').value;
+    const eh = dlg.querySelector('#f_leave_end_h').value, em = dlg.querySelector('#f_leave_end_m').value;
+    const timeStart = (sh!==''&&sm!=='') ? `${sh}:${sm}` : '';
+    const timeEnd = (eh!==''&&em!=='') ? `${eh}:${em}` : '';
+    const data = {
+      employeeId, type: dlg.querySelector('#f_type').value,
+      start, end, timeStart, timeEnd, note: dlg.querySelector('#f_note').value.trim(),
+    };
+    if(existing){ Object.assign(existing, data); }
+    else { state.leaves.push({id:uid(), ...data, status:'approved'}); }
+    await saveList('leaves', state.leaves);
+    dlg.close(); renderContent();
+  };
+}
+
+/* ================= USERS ================= */
+function viewUsers(){
+  const pending = state.users.filter(u=>u.approved===false);
+  const active = state.users.filter(u=>u.approved!==false);
+  return `
+    <div class="topbar">
+      <div><h1>ผู้ใช้งาน</h1><div class="sub">จัดการบัญชีผู้เข้าใช้เว็บนี้ (เฉพาะผู้ดูแลระบบ)</div></div>
+      <button class="btn btn-amber" id="addUser">+ เพิ่มผู้ใช้งาน</button>
+    </div>
+
+    ${pending.length? `
+    <div class="card" style="border-left:3px solid var(--amber);">
+      <h3>รอการอนุมัติ <span class="hint">${pending.length} คน</span></h3>
+      <table>
+        <thead><tr><th>ชื่อ</th><th>ชื่อผู้ใช้</th><th>Email</th><th>สิทธิ์ที่ขอ</th><th></th></tr></thead>
+        <tbody>
+          ${pending.map(u=>`
+            <tr>
+              <td style="font-weight:600;">${u.name}</td>
+              <td class="mono">${u.username}</td>
+              <td>${u.email||'-'}</td>
+              <td><span class="role-badge ${u.role}">${u.role==='admin'?'ผู้ดูแลระบบ':'ช่างหน้างาน'}</span></td>
+              <td style="white-space:nowrap;">
+                <button class="btn btn-amber btn-sm" data-approveuser="${u.id}">✓ อนุมัติ</button>
+                <button class="btn btn-danger btn-sm" data-deluser="${u.id}">ปฏิเสธ</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>` : ''}
+
+    <div class="card">
+      <h3>บัญชีผู้ใช้งาน</h3>
+      ${active.length? `
+      <table>
+        <thead><tr><th>ชื่อ</th><th>ชื่อผู้ใช้</th><th>Email</th><th>สิทธิ์</th><th></th></tr></thead>
+        <tbody>
+          ${active.map(u=>`
+            <tr>
+              <td style="font-weight:600;">${u.name} ${u.id===session.user.id? '<span class="hint" style="font-weight:400;">(คุณ)</span>':''}</td>
+              <td class="mono">${u.username}</td>
+              <td>${u.email||'-'}</td>
+              <td><span class="role-badge ${u.role}">${u.role==='admin'?'ผู้ดูแลระบบ':'ช่างหน้างาน'}</span></td>
+              <td style="white-space:nowrap;">
+                <button class="btn btn-ghost btn-sm" data-edituser="${u.id}">แก้ไข</button>
+                ${u.id!==session.user.id? `<button class="btn btn-danger btn-sm" data-deluser="${u.id}">ลบ</button>` : ''}
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>` : `<div class="empty">ยังไม่มีผู้ใช้งาน</div>`}
+    </div>
+  `;
+}
+
+function openUserDialog(existing){
+  const dlg = document.getElementById('dlg');
+  dlg.innerHTML = `
+    <div class="dialog-head"><h3>${existing?'แก้ไขผู้ใช้งาน':'เพิ่มผู้ใช้งาน'}</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+    <div class="dialog-body">
+      <div class="field"><label>ชื่อ-นามสกุล</label><input id="f_name" value="${existing?existing.name:''}" placeholder="ชื่อผู้ใช้งาน"></div>
+      <div class="field"><label>ชื่อผู้ใช้ (Username)</label><input id="f_username" value="${existing?existing.username:''}" placeholder="สำหรับล็อกอิน" ${existing?'disabled':''}></div>
+      <div class="field"><label>Email</label><input type="email" id="f_email" value="${existing?existing.email||'':''}" placeholder="name@example.com"></div>
+      <div class="field"><label>สิทธิ์การใช้งาน</label>
+        <select id="f_role">
+          <option value="staff" ${existing&&existing.role==='staff'?'selected':''}>ช่างหน้างาน</option>
+          <option value="admin" ${existing&&existing.role==='admin'?'selected':''}>ผู้ดูแลระบบ</option>
+        </select>
+      </div>
+      <div class="field"><label>${existing? 'ตั้งรหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)' : 'รหัสผ่าน'}</label><input type="password" id="f_pass" placeholder="อย่างน้อย 6 ตัวอักษร"></div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-ghost" id="dlgCancel">ยกเลิก</button>
+      <button class="btn btn-amber" id="saveUser">บันทึก</button>
+    </div>
+  `;
+  dlg.showModal();
+  dlg.querySelector('#dlgClose').onclick=()=>dlg.close();
+  dlg.querySelector('#dlgCancel').onclick=()=>dlg.close();
+  dlg.querySelector('#saveUser').onclick = async ()=>{
+    const name = dlg.querySelector('#f_name').value.trim();
+    const username = dlg.querySelector('#f_username').value.trim().toLowerCase();
+    const email = dlg.querySelector('#f_email').value.trim();
+    const role = dlg.querySelector('#f_role').value;
+    const pass = dlg.querySelector('#f_pass').value;
+    if(!name || !username){ alert('กรุณากรอกชื่อและชื่อผู้ใช้'); return; }
+    if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ alert('กรุณากรอก Email ให้ถูกต้อง'); return; }
+    if(!existing && !pass){ alert('กรุณาตั้งรหัสผ่าน'); return; }
+    if(pass && pass.length<6){ alert('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'); return; }
+    if(!existing && state.users.some(u=>u.username.toLowerCase()===username)){ alert('มีชื่อผู้ใช้นี้อยู่แล้ว'); return; }
+
+    if(existing){
+      existing.name = name; existing.role = role; existing.email = email;
+      if(pass) existing.passwordHash = await sha256(pass);
+      if(session.user.id===existing.id) session.user = existing;
+    } else {
+      const passwordHash = await sha256(pass);
+      state.users.push({id:uid(), username, name, email, role, passwordHash, approved:true});
+    }
+    await saveList('users', state.users);
+    dlg.close(); renderNav(); renderContent();
+  };
+}
+
+
+/* ================= TEAM ================= */
+function viewTeam(){
+  return `
+    <div class="topbar">
+      <div><h1>รายชื่อทีม</h1><div class="sub">จัดการรายชื่อทีมที่ใช้ในตารางเวร นัดหมาย OT และการลา</div></div>
+      <button class="btn btn-amber" id="addEmp">+ เพิ่มรายชื่อ</button>
+    </div>
+    <div class="card">
+      ${state.employees.length? `
+      <table>
+        <thead><tr><th>ชื่อ</th><th>เบอร์โทร</th><th>Email</th><th></th></tr></thead>
+        <tbody>
+          ${state.employees.map(e=>`
+            <tr>
+              <td style="font-weight:600;">${e.name}</td>
+              <td class="mono">${e.phone||'-'}</td>
+              <td>${e.email||'-'}</td>
+              <td style="white-space:nowrap;">
+                <button class="btn btn-ghost btn-sm" data-editemp="${e.id}">แก้ไข</button>
+                <button class="btn btn-danger btn-sm" data-delemp="${e.id}">ลบ</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>` : `<div class="empty">ยังไม่มีรายชื่อ กด "เพิ่มรายชื่อ" เพื่อเริ่มต้น</div>`}
+    </div>
+  `;
+}
+
+function openEmpDialog(existing){
+  const dlg = document.getElementById('dlg');
+  dlg.innerHTML = `
+    <div class="dialog-head"><h3>${existing?'แก้ไขรายชื่อ':'เพิ่มรายชื่อ'}</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+    <div class="dialog-body">
+      <div class="field"><label>ชื่อ-นามสกุล</label><input id="f_name" value="${existing?existing.name:''}" placeholder="ชื่อ"></div>
+      <div class="field"><label>เบอร์โทร</label><input id="f_phone" value="${existing?existing.phone||'':''}" placeholder="08x-xxx-xxxx"></div>
+      <div class="field"><label>Email</label><input type="email" id="f_email" value="${existing?existing.email||'':''}" placeholder="name@example.com"></div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-ghost" id="dlgCancel">ยกเลิก</button>
+      <button class="btn btn-amber" id="saveEmp">บันทึก</button>
+    </div>
+  `;
+  dlg.showModal();
+  dlg.querySelector('#dlgClose').onclick=()=>dlg.close();
+  dlg.querySelector('#dlgCancel').onclick=()=>dlg.close();
+  dlg.querySelector('#saveEmp').onclick = async ()=>{
+    const name = dlg.querySelector('#f_name').value.trim();
+    if(!name){ alert('กรุณากรอกชื่อ'); return; }
+    const data = { name, phone: dlg.querySelector('#f_phone').value.trim(), email: dlg.querySelector('#f_email').value.trim() };
+    if(existing){ Object.assign(existing, data); }
+    else { state.employees.push({id:uid(), ...data}); }
+    await saveList('employees', state.employees);
+    dlg.close(); renderContent();
+  };
+}
+
+/* ---------------- event binding ---------------- */
+function bindContentEvents(){
+  const c = document.getElementById('content');
+
+  // report
+  const expExcel = c.querySelector('#exportExcelReport'); if(expExcel) expExcel.onclick = ()=> exportReportToExcel();
+  const expPptx = c.querySelector('#exportPptxReport'); if(expPptx) expPptx.onclick = ()=> exportReportToPptx();
+  c.querySelectorAll('[data-rp]').forEach(el=> el.onclick=()=>{ state.reportPeriod = el.dataset.rp; renderContent(); });
+  const repPrev = c.querySelector('#repPrev'); if(repPrev) repPrev.onclick=()=>{ shiftReportRef(-1); renderContent(); };
+  const repNext = c.querySelector('#repNext'); if(repNext) repNext.onclick=()=>{ shiftReportRef(1); renderContent(); };
+  const repNow = c.querySelector('#repNow'); if(repNow) repNow.onclick=()=>{ state.reportRef = fmtDate(new Date()); renderContent(); };
+
+  // calendar
+  c.querySelectorAll('.cal-cell[data-day]').forEach(el=>{
+    el.addEventListener('click', ()=> openDayDialog(el.dataset.day));
+  });
+  const pcm = c.querySelector('#prevCalMonth'); if(pcm) pcm.onclick=()=>{ let m=state.calMonth-1,y=state.calYear; if(m<0){m=11;y--;} state.calMonth=m; state.calYear=y; renderContent(); };
+  const ncm = c.querySelector('#nextCalMonth'); if(ncm) ncm.onclick=()=>{ let m=state.calMonth+1,y=state.calYear; if(m>11){m=0;y++;} state.calMonth=m; state.calYear=y; renderContent(); };
+  const tcm = c.querySelector('#thisCalMonth'); if(tcm) tcm.onclick=()=>{ state.calMonth=new Date().getMonth(); state.calYear=new Date().getFullYear(); renderContent(); };
+
+  // schedule
+  c.querySelectorAll('.cell-shift').forEach(el=>{
+    el.addEventListener('click', ()=> toggleShift(el.dataset.emp, el.dataset.date));
+  });
+  const pw = c.querySelector('#prevWeek'); if(pw) pw.onclick=()=>{ const d=new Date(state.weekStart); d.setDate(d.getDate()-7); state.weekStart=d; renderContent(); };
+  const nw = c.querySelector('#nextWeek'); if(nw) nw.onclick=()=>{ const d=new Date(state.weekStart); d.setDate(d.getDate()+7); state.weekStart=d; renderContent(); };
+  const tw = c.querySelector('#thisWeek'); if(tw) tw.onclick=()=>{ state.weekStart=startOfWeek(new Date()); renderContent(); };
+  const schedImportBtn = c.querySelector('#importScheduleExcel');
+  const schedFileInput = c.querySelector('#scheduleFileInput');
+  if(schedImportBtn && schedFileInput){
+    schedImportBtn.onclick = ()=> schedFileInput.click();
+    schedFileInput.onchange = (e)=>{
+      const file = e.target.files[0];
+      const clearFirst = c.querySelector('#clearBeforeImport')?.checked || false;
+      if(file) handleScheduleExcelImport(file, clearFirst);
+      schedFileInput.value = '';
+    };
+  }
+
+  // appointments
+  const aAdd = c.querySelector('#addAppt'); if(aAdd) aAdd.onclick=()=>openApptDialog(null);
+  const smcBtn = c.querySelector('#openSmcMonitor'); if(smcBtn) smcBtn.onclick=()=>openSmcMonitorDialog();
+  const exportApptBtn = c.querySelector('#exportApptExcel'); if(exportApptBtn) exportApptBtn.onclick=()=>exportApptToExcel();
+  c.querySelectorAll('[data-editappt]').forEach(el=> el.onclick=()=> openApptDialog(state.appointments.find(a=>a.id===el.dataset.editappt)));
+  c.querySelectorAll('[data-approveappt]').forEach(el=> el.onclick=()=> approveAppointment(el.dataset.approveappt));
+  c.querySelectorAll('[data-doneappt]').forEach(el=> el.onclick=()=> setApptDone(el.dataset.doneappt, 'done', 'ทำเครื่องหมายนัดหมายนี้เป็น "เสร็จสิ้น" ใช่หรือไม่?'));
+  c.querySelectorAll('[data-cancelappt]').forEach(el=> el.onclick=()=> setApptApproval(el.dataset.cancelappt, 'cancelled', 'ยกเลิกนัดหมายนี้ใช่หรือไม่?'));
+  c.querySelectorAll('[data-delappt]').forEach(el=> el.onclick= async ()=>{
+    if(!confirm('ยืนยันการลบนัดหมายนี้?')) return;
+    state.appointments = state.appointments.filter(a=>a.id!==el.dataset.delappt);
+    await saveList('appointments', state.appointments); renderContent();
+  });
+  c.querySelectorAll('.pill-tab[data-f]').forEach(el=> el.onclick=()=>{ state.apptFilter = el.dataset.f; renderContent(); });
+
+  // planwork
+  const pwAdd = c.querySelector('#addPlanwork'); if(pwAdd) pwAdd.onclick=()=>openPlanworkDialog(null);
+  const pwNotifyBtn = c.querySelector('#openPwNotify'); if(pwNotifyBtn) pwNotifyBtn.onclick=()=>openPwNotifyDialog();
+  const fixLegacyBtn = c.querySelector('#fixLegacyAssign'); if(fixLegacyBtn) fixLegacyBtn.onclick=()=>fixLegacyAssignBy();
+  const pwImportBtn = c.querySelector('#importExcel');
+  const pwFileInput = c.querySelector('#pwFileInput');
+  if(pwImportBtn && pwFileInput){
+    pwImportBtn.onclick = ()=> pwFileInput.click();
+    pwFileInput.onchange = (e)=>{
+      const file = e.target.files[0];
+      if(file) handleExcelImport(file);
+      pwFileInput.value = '';
+    };
+  }
+  c.querySelectorAll('[data-editpw]').forEach(el=> el.onclick=()=> openPlanworkDialog(state.planworks.find(p=>p.id===el.dataset.editpw)));
+  c.querySelectorAll('[data-delpw]').forEach(el=> el.onclick= async ()=>{
+    if(!confirm('ยืนยันการลบ Planwork นี้?')) return;
+    state.planworks = state.planworks.filter(p=>p.id!==el.dataset.delpw);
+    await saveList('planworks', state.planworks); renderContent();
+  });
+  const pwSearch = c.querySelector('#pwSearch');
+  if(pwSearch){
+    pwSearch.oninput = ()=>{ state.planworkSearch = pwSearch.value; };
+    pwSearch.onkeydown = (e)=>{ if(e.key==='Enter'){ renderContent(); } };
+    pwSearch.onblur = ()=>{ renderContent(); };
+  }
+
+  // OT
+  const otAdd = c.querySelector('#addOT'); if(otAdd) otAdd.onclick=()=>openOTDialog();
+  const pom = c.querySelector('#prevOTMonth'); if(pom) pom.onclick=()=>{ let m=state.otMonth-1,y=state.otYear; if(m<0){m=11;y--;} state.otMonth=m; state.otYear=y; renderContent(); };
+  const nom = c.querySelector('#nextOTMonth'); if(nom) nom.onclick=()=>{ let m=state.otMonth+1,y=state.otYear; if(m>11){m=0;y++;} state.otMonth=m; state.otYear=y; renderContent(); };
+  c.querySelectorAll('[data-delot]').forEach(el=> el.onclick= async ()=>{
+    if(!confirm('ยืนยันการลบรายการนี้?')) return;
+    state.otEntries = state.otEntries.filter(o=>o.id!==el.dataset.delot);
+    await saveList('ot-entries', state.otEntries); renderContent();
+  });
+
+  // leave
+  const lAdd = c.querySelector('#addLeave'); if(lAdd) lAdd.onclick=()=>openLeaveDialog(null);
+  const plm = c.querySelector('#prevLeaveMonth'); if(plm) plm.onclick=()=>{ let m=state.leaveMonth-1,y=state.leaveYear; if(m<0){m=11;y--;} state.leaveMonth=m; state.leaveYear=y; renderContent(); };
+  const nlm = c.querySelector('#nextLeaveMonth'); if(nlm) nlm.onclick=()=>{ let m=state.leaveMonth+1,y=state.leaveYear; if(m>11){m=0;y++;} state.leaveMonth=m; state.leaveYear=y; renderContent(); };
+  c.querySelectorAll('[data-editleave]').forEach(el=> el.onclick=()=> openLeaveDialog(state.leaves.find(l=>l.id===el.dataset.editleave)));
+  c.querySelectorAll('[data-delleave]').forEach(el=> el.onclick= async ()=>{
+    if(!confirm('ยืนยันการลบวันลานี้?')) return;
+    state.leaves = state.leaves.filter(l=>l.id!==el.dataset.delleave);
+    await saveList('leaves', state.leaves); renderContent();
+  });
+
+  // users
+  const uAdd = c.querySelector('#addUser'); if(uAdd) uAdd.onclick=()=>openUserDialog(null);
+  c.querySelectorAll('[data-edituser]').forEach(el=> el.onclick=()=> openUserDialog(state.users.find(x=>x.id===el.dataset.edituser)));
+  c.querySelectorAll('[data-approveuser]').forEach(el=> el.onclick= async ()=>{
+    const u = state.users.find(x=>x.id===el.dataset.approveuser);
+    if(u){ u.approved = true; await saveList('users', state.users); renderContent(); }
+  });
+  c.querySelectorAll('[data-deluser]').forEach(el=> el.onclick= async ()=>{
+    if(!confirm('ลบผู้ใช้งานนี้?')) return;
+    state.users = state.users.filter(x=>x.id!==el.dataset.deluser);
+    await saveList('users', state.users); renderContent();
+  });
+
+  // team
+  const eAdd = c.querySelector('#addEmp'); if(eAdd) eAdd.onclick=()=>openEmpDialog(null);
+  c.querySelectorAll('[data-editemp]').forEach(el=> el.onclick=()=> openEmpDialog(state.employees.find(x=>x.id===el.dataset.editemp)));
+  c.querySelectorAll('[data-delemp]').forEach(el=> el.onclick= async ()=>{
+    if(!confirm('ลบพนักงานคนนี้? ข้อมูลเวร/นัดหมาย/OT/ลาที่ผูกกับคนนี้จะยังอยู่แต่จะแสดงชื่อไม่ได้')) return;
+    state.employees = state.employees.filter(x=>x.id!==el.dataset.delemp);
+    await saveList('employees', state.employees); renderContent();
+  });
+}
+
+init();
+</script>
+</body>
+</html>
