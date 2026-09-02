@@ -1963,7 +1963,8 @@ function pwAllItems(){
 function pwSubjectText(){
   const type = PW_TYPES.find(t=>t.v===pwNotifyState.type) || PW_TYPES[0];
   const period = PW_PERIODS.find(p=>p.v===pwNotifyState.period) || PW_PERIODS[0];
-  return `Update ${type.label} ${dmy(fmtDate(new Date()))} ${period.label} ${pwAllItems().length} CR PW`;
+  const dateStr = pwNotifyState.dateFilter || fmtDate(new Date());
+  return `Update ${type.label} ${dmy(dateStr)} ${period.label} ${pwAllItems().length} CR PW`;
 }
 
 function pwBodyText(){
