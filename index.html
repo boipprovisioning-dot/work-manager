@@ -253,7 +253,7 @@ let state = {
   appointments: [],  // {id, date, time, customer, phone, address, employeeId, status, note, submittedBy}
   otEntries: [],     // {id, employeeId, date, hours, reason}
   leaves: [],        // {id, employeeId, type, start, end, note, status}
-  planworks: [],     // {id, date, dnType, dnTime, planNo, detail, node, reference, assignBy, workType, vendor, remark, remarkMail}
+  planworks: [],     // {id, date, dnType, dnTime, planNo, detail, node, reference, assignBy, workType, vendor, remark, remarkMail, completed}
   users: [],         // {id, username, passwordHash, name, role: 'admin'|'staff'}
   route: 'overview',
   weekStart: startOfWeek(new Date()),
@@ -1893,16 +1893,17 @@ function viewPlanwork(){
             <th>Vender</th>
             <th>ReMark</th>
             <th>ReMark Mail</th>
+            <th>สถานะ</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
           ${list.map(p=>`
-            <tr>
+            <tr${p.completed?' style="opacity:.6;"':''}>
               <td class="mono">${dmy(p.date)}</td>
               <td class="mono">${p.dnType?`<span class="badge ${p.dnType==='Night'?'night':'morning'}">${p.dnType}</span>`:''} ${p.dnTime||''}</td>
-              <td style="font-weight:600;">${p.planNo||'-'}</td>
-              <td style="max-width:220px; white-space:pre-wrap;">${p.detail||'-'}</td>
+              <td style="font-weight:600; ${p.completed?'text-decoration:line-through;':''}">${p.planNo||'-'}</td>
+              <td style="max-width:220px; white-space:pre-wrap; ${p.completed?'text-decoration:line-through;':''}">${p.detail||'-'}</td>
               <td>${p.node||'-'}</td>
               <td>${p.reference||'-'}</td>
               <td>${p.assignBy||'-'}</td>
@@ -1910,7 +1911,9 @@ function viewPlanwork(){
               <td>${p.vendor||'-'}</td>
               <td style="max-width:160px; white-space:pre-wrap;">${p.remark||'-'}</td>
               <td style="max-width:160px; white-space:pre-wrap;">${p.remarkMail||'-'}</td>
+              <td><span class="badge ${p.completed?'done':'pending'}">${p.completed?'Completed':'Pending'}</span></td>
               <td style="white-space:nowrap;">
+                <button class="btn ${p.completed?'btn-ghost':'btn-amber'} btn-sm" data-togglepw="${p.id}">${p.completed?'↺ Reopen':'✓ Completed'}</button>
                 <button class="btn btn-ghost btn-sm" data-editpw="${p.id}">แก้ไข</button>
                 <button class="btn btn-danger btn-sm" data-delpw="${p.id}">ลบ</button>
               </td>
@@ -2820,6 +2823,12 @@ function bindContentEvents(){
   c.querySelectorAll('[data-delpw]').forEach(el=> el.onclick= async ()=>{
     if(!confirm('ยืนยันการลบ Planwork นี้?')) return;
     state.planworks = state.planworks.filter(p=>p.id!==el.dataset.delpw);
+    await saveList('planworks', state.planworks); renderContent();
+  });
+  c.querySelectorAll('[data-togglepw]').forEach(el=> el.onclick= async ()=>{
+    const p = state.planworks.find(x=>x.id===el.dataset.togglepw);
+    if(!p) return;
+    p.completed = !p.completed;
     await saveList('planworks', state.planworks); renderContent();
   });
   const pwSearch = c.querySelector('#pwSearch');
