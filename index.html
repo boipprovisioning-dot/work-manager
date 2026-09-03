@@ -819,8 +819,15 @@ function computeReportData(){
   const apptDoneCount = apptsInRange.filter(a=> apptDoneStatus(a)==='done').length;
 
   const pwInRange = state.planworks.filter(p=> p.date>=start && p.date<=end);
-  const pwByType = {};
-  pwInRange.forEach(p=>{ const k = p.workType || 'ไม่ระบุ'; pwByType[k] = (pwByType[k]||0) + 1; });
+  const pwByType = {}; // {workType: {total, completed, cancelled}}
+  pwInRange.forEach(p=>{
+    const k = p.workType || 'ไม่ระบุ';
+    if(!pwByType[k]) pwByType[k] = {total:0, completed:0, cancelled:0};
+    pwByType[k].total++;
+    const st = pwStatusOf(p);
+    if(st==='completed') pwByType[k].completed++;
+    else if(st==='cancelled') pwByType[k].cancelled++;
+  });
   const pwCompletedCount = pwInRange.filter(p=>pwStatusOf(p)==='completed').length;
   const pwCancelledCount = pwInRange.filter(p=>pwStatusOf(p)==='cancelled').length;
 
@@ -915,12 +922,14 @@ function viewReport(){
       <div class="grid-stats" style="margin-bottom:14px;">
         <div class="stat-card violet"><div class="n">${pwInRange.length}</div><div class="l">Planwork ทั้งหมด</div></div>
         <div class="stat-card teal"><div class="n">${pwCompletedCount}</div><div class="l">Completed</div></div>
-        <div class="stat-card amber"><div class="n">${pwInRange.length - pwCompletedCount - pwCancelledCount}</div><div class="l">Pending</div></div>
         <div class="stat-card red"><div class="n">${pwCancelledCount}</div><div class="l">Cancelled</div></div>
       </div>
       <table>
-        <thead><tr><th>Work Type</th><th>จำนวน</th></tr></thead>
-        <tbody>${Object.entries(pwByType).map(([k,v])=>`<tr><td>${k}</td><td class="mono">${v}</td></tr>`).join('')}</tbody>
+        <thead><tr><th>Work Type</th><th>จำนวน</th><th>Completed</th><th>Cancelled</th></tr></thead>
+        <tbody>
+          ${Object.entries(pwByType).map(([k,v])=>`<tr><td>${k}</td><td class="mono">${v.total}</td><td class="mono">${v.completed||''}</td><td class="mono">${v.cancelled||''}</td></tr>`).join('')}
+          <tr style="font-weight:700; border-top:2px solid var(--line);"><td>รวม</td><td class="mono">${pwInRange.length}</td><td class="mono">${pwCompletedCount}</td><td class="mono">${pwCancelledCount}</td></tr>
+        </tbody>
       </table>` : `<div class="empty">ไม่มี Planwork ในช่วงเวลานี้</div>`}
     </div>
 
@@ -983,12 +992,9 @@ async function exportReportToExcel(){
     apptRows.push(['เสร็จสิ้นแล้ว (งาน)', d.apptDoneCount]);
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(apptRows), 'นัดหมายติดตั้ง');
 
-    const pwRows = [['Work Type','จำนวน']];
-    Object.entries(d.pwByType).forEach(([k,v])=> pwRows.push([k, v]));
-    pwRows.push([]);
-    pwRows.push(['Completed', d.pwCompletedCount]);
-    pwRows.push(['Cancelled', d.pwCancelledCount]);
-    pwRows.push(['Pending', d.pwInRange.length - d.pwCompletedCount - d.pwCancelledCount]);
+    const pwRows = [['Work Type','จำนวน','Completed','Cancelled']];
+    Object.entries(d.pwByType).forEach(([k,v])=> pwRows.push([k, v.total, v.completed||0, v.cancelled||0]));
+    pwRows.push(['รวม', d.pwInRange.length, d.pwCompletedCount, d.pwCancelledCount]);
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pwRows), 'Planwork');
 
     const otRows = [['พนักงาน','ชั่วโมง OT','ชั่วโมงเทียบเท่า (คูณแรง)']];
