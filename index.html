@@ -2062,13 +2062,24 @@ const PW_PERIODS = [
   {v:'day', label:'DayTime', range:'09:00-20:59', dnType:'Day'},
   {v:'night', label:'NightTime', range:'21:00-08:59', dnType:'Night'},
 ];
-let pwNotifyState = null; // { type, period, planworkSelected:Set<planworkId>, dateFilter, to, cc }
+let pwNotifyState = null; // { type, period, planworkSelected:Set<planworkId>, dateFilter, refFilter:Set<string>, to, cc }
+
+// maps a Planwork's Referance field to one of the 3 canonical status labels
+function pwRefCategory(p){
+  const st = pwStatusOf(p);
+  if(st==='completed') return 'Completed';
+  if(st==='cancelled') return 'Cancel';
+  return 'Not migrate';
+}
 
 function pwPlanworkPool(){
   let list = state.planworks.slice();
   if(pwNotifyState.dateFilter){ list = list.filter(p=>p.date===pwNotifyState.dateFilter); }
   const wantDn = (PW_PERIODS.find(p=>p.v===pwNotifyState.period)||PW_PERIODS[0]).dnType;
   list = list.filter(p=> !p.dnType || p.dnType===wantDn); // Planwork with no Day/Night set isn't excluded
+  if(pwNotifyState.refFilter && pwNotifyState.refFilter.size < PW_REF_STATUS.length){
+    list = list.filter(p=> pwNotifyState.refFilter.has(pwRefCategory(p)));
+  }
   return list.sort((a,b)=> (a.date||'').localeCompare(b.date||''));
 }
 
@@ -2122,7 +2133,7 @@ function pwBodyText(){
 }
 
 function openPwNotifyDialog(){
-  pwNotifyState = { type:'olt', period:'day', planworkSelected:new Set(), dateFilter:fmtDate(new Date()), to:PW_TO_DEFAULT, cc:PW_CC_DEFAULT };
+  pwNotifyState = { type:'olt', period:'day', planworkSelected:new Set(), dateFilter:fmtDate(new Date()), refFilter:new Set(PW_REF_STATUS), to:PW_TO_DEFAULT, cc:PW_CC_DEFAULT };
   renderPwNotifyDialog();
 }
 
@@ -2168,6 +2179,13 @@ function renderPwNotifyDialog(){
             <input type="date" id="pwDateFilter" style="width:auto;" value="${pwNotifyState.dateFilter||''}">
             <button class="btn btn-ghost btn-sm" id="pwDateToday" type="button">วันนี้</button>
             <button class="btn btn-ghost btn-sm" id="pwDateClear" type="button">ทุกวันที่</button>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; flex-shrink:0; flex-wrap:wrap;">
+            <span style="font-size:12.5px; font-weight:600; color:var(--navy-800); white-space:nowrap;">Referance</span>
+            ${PW_REF_STATUS.map(o=>`
+              <label style="display:flex; align-items:center; gap:4px; font-size:12.5px; font-weight:500; cursor:pointer; white-space:nowrap;">
+                <input type="checkbox" class="pw-ref-chk" value="${o}" style="width:auto;" ${pwNotifyState.refFilter.has(o)?'checked':''}> ${o}
+              </label>`).join('')}
           </div>
           <div style="display:flex; gap:6px; flex-shrink:0; margin-left:auto;">
             <button class="btn btn-ghost btn-sm" id="pwSelectAll" type="button">เลือกทั้งหมด</button>
@@ -2242,6 +2260,16 @@ function bindPwNotifyDialogEvents(){
     pwPruneSelection();
     renderPwNotifyDialog();
   };
+
+  dlg.querySelectorAll('.pw-ref-chk').forEach(chk=>{
+    chk.onchange = ()=>{
+      captureEditable();
+      if(chk.checked) pwNotifyState.refFilter.add(chk.value);
+      else pwNotifyState.refFilter.delete(chk.value);
+      pwPruneSelection();
+      renderPwNotifyDialog();
+    };
+  });
 
   dlg.querySelectorAll('.pw-plan-chk').forEach(chk=>{
     chk.onchange = ()=>{
