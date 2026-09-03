@@ -107,6 +107,10 @@
   .badge.done{ background:var(--green-dim); color:#265c39; }
   .badge.cancelled{ background:var(--red-dim); color:#8a1f1f; }
   .badge.leavetype{ background:var(--red-dim); color:#8a1f1f; }
+  select.badge-select{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; border-radius:100px; padding:3px 9px; border:1px solid transparent; cursor:pointer; }
+  select.badge-select.ref-pending{ background:var(--amber-dim); color:#8a5a0c; }
+  select.badge-select.ref-completed{ background:var(--green-dim); color:#265c39; }
+  select.badge-select.ref-cancel{ background:var(--red-dim); color:#8a1f1f; }
 
   input,select,textarea{
     width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:7px;
@@ -253,7 +257,7 @@ let state = {
   appointments: [],  // {id, date, time, customer, phone, address, employeeId, status, note, submittedBy}
   otEntries: [],     // {id, employeeId, date, hours, reason}
   leaves: [],        // {id, employeeId, type, start, end, note, status}
-  planworks: [],     // {id, date, dnType, dnTime, planNo, detail, node, reference, assignBy, workType, vendor, remark, remarkMail, completed}
+  planworks: [],     // {id, date, dnType, dnTime, planNo, detail, node, reference, assignBy, workType, vendor, remark, remarkMail, completed, cancelled}
   users: [],         // {id, username, passwordHash, name, role: 'admin'|'staff'}
   route: 'overview',
   weekStart: startOfWeek(new Date()),
@@ -817,7 +821,8 @@ function computeReportData(){
   const pwInRange = state.planworks.filter(p=> p.date>=start && p.date<=end);
   const pwByType = {};
   pwInRange.forEach(p=>{ const k = p.workType || 'ไม่ระบุ'; pwByType[k] = (pwByType[k]||0) + 1; });
-  const pwCompletedCount = pwInRange.filter(p=>p.completed).length;
+  const pwCompletedCount = pwInRange.filter(p=>pwStatusOf(p)==='completed').length;
+  const pwCancelledCount = pwInRange.filter(p=>pwStatusOf(p)==='cancelled').length;
 
   const otInRange = state.otEntries.filter(o=> o.date>=start && o.date<=end);
   const otTotals = {};
@@ -845,14 +850,14 @@ function computeReportData(){
     start, end, label,
     shiftsInRange, shiftTotals,
     apptsInRange, apptCounts, apptDoneCount,
-    pwInRange, pwByType, pwCompletedCount,
+    pwInRange, pwByType, pwCompletedCount, pwCancelledCount,
     otInRange, otTotals, otSumAll, otWeightedTotals, otWeightedSumAll,
     leavesInRange, leaveDaysByEmp, leaveDaysByType, totalLeaveDays,
   };
 }
 
 function viewReport(){
-  const {start, end, label, shiftsInRange, shiftTotals, apptsInRange, apptCounts, apptDoneCount, pwInRange, pwByType, pwCompletedCount, otTotals, otSumAll, otWeightedTotals, leaveDaysByEmp, leaveDaysByType, totalLeaveDays} = computeReportData();
+  const {start, end, label, shiftsInRange, shiftTotals, apptsInRange, apptCounts, apptDoneCount, pwInRange, pwByType, pwCompletedCount, pwCancelledCount, otTotals, otSumAll, otWeightedTotals, leaveDaysByEmp, leaveDaysByType, totalLeaveDays} = computeReportData();
 
   return `
     <div class="topbar">
@@ -910,7 +915,8 @@ function viewReport(){
       <div class="grid-stats" style="margin-bottom:14px;">
         <div class="stat-card violet"><div class="n">${pwInRange.length}</div><div class="l">Planwork ทั้งหมด</div></div>
         <div class="stat-card teal"><div class="n">${pwCompletedCount}</div><div class="l">Completed</div></div>
-        <div class="stat-card amber"><div class="n">${pwInRange.length - pwCompletedCount}</div><div class="l">Pending</div></div>
+        <div class="stat-card amber"><div class="n">${pwInRange.length - pwCompletedCount - pwCancelledCount}</div><div class="l">Pending</div></div>
+        <div class="stat-card red"><div class="n">${pwCancelledCount}</div><div class="l">Cancelled</div></div>
       </div>
       <table>
         <thead><tr><th>Work Type</th><th>จำนวน</th></tr></thead>
@@ -960,6 +966,7 @@ async function exportReportToExcel(){
       ['นัดหมายติดตั้ง', d.apptsInRange.length],
       ['Planwork', d.pwInRange.length],
       ['Planwork Completed', d.pwCompletedCount],
+      ['Planwork Cancelled', d.pwCancelledCount],
       ['ชั่วโมง OT รวม', Number(d.otSumAll.toFixed(1))],
       ['วันลารวม (วัน)', d.totalLeaveDays],
     ];
@@ -980,7 +987,8 @@ async function exportReportToExcel(){
     Object.entries(d.pwByType).forEach(([k,v])=> pwRows.push([k, v]));
     pwRows.push([]);
     pwRows.push(['Completed', d.pwCompletedCount]);
-    pwRows.push(['Pending', d.pwInRange.length - d.pwCompletedCount]);
+    pwRows.push(['Cancelled', d.pwCancelledCount]);
+    pwRows.push(['Pending', d.pwInRange.length - d.pwCompletedCount - d.pwCancelledCount]);
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pwRows), 'Planwork');
 
     const otRows = [['พนักงาน','ชั่วโมง OT','ชั่วโมงเทียบเท่า (คูณแรง)']];
@@ -1864,6 +1872,18 @@ function bindSmcDialogEvents(){
 
 /* ================= PLANWORK ================= */
 const PW_PAGE_SIZES = [10, 25, 50, 100];
+const PW_REF_STATUS = ['Not migrate', 'Completed', 'Cancel'];
+
+// Referance now doubles as the work-status field. Falls back to the legacy
+// completed/cancelled booleans for rows toggled before this change.
+function pwStatusOf(p){
+  const ref = (p.reference||'').trim();
+  if(/^completed$/i.test(ref)) return 'completed';
+  if(/^cancel(led)?$/i.test(ref)) return 'cancelled';
+  if(p.cancelled) return 'cancelled';
+  if(p.completed) return 'completed';
+  return 'pending';
+}
 
 function pwBuildPager(current, total){
   if(total<=1) return [{page:1}];
@@ -1915,6 +1935,8 @@ function viewPlanwork(){
         <input type="file" id="pwFileInput" accept=".xlsx,.xls" style="display:none;">
         <button class="btn btn-ghost" id="fixLegacyAssign">🔧 แก้ Assingment By เก่า</button>
         <button class="btn btn-ghost" id="openPwNotify">📧 แจ้ง PW Change/Swap/Off-node</button>
+        <button class="btn btn-ghost" id="exportPwExcel">⬇ Export Excel (Backup)</button>
+        <button class="btn btn-danger" id="clearAllPw">🗑 ล้างข้อมูลทั้งหมด</button>
         <button class="btn btn-amber" id="addPlanwork">+ เพิ่ม Planwork</button>
       </div>
     </div>
@@ -1943,15 +1965,18 @@ function viewPlanwork(){
     ${selectedCount? `
     <div class="card" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 16px;">
       <span style="font-size:12.5px; font-weight:600;">เลือกแล้ว ${selectedCount} รายการ</span>
-      <button class="btn btn-amber btn-sm" id="pwBulkComplete" type="button">✓ ทำเครื่องหมายเสร็จ</button>
-      <button class="btn btn-ghost btn-sm" id="pwBulkReopen" type="button">↺ เปิดใหม่</button>
+      <button class="btn btn-amber btn-sm" id="pwBulkEdit" type="button">✎ แก้ไขพร้อมกัน</button>
+      <span style="font-size:12.5px; color:var(--slate-400);">ตั้ง Referance เป็น:</span>
+      <button class="btn btn-ghost btn-sm" id="pwBulkSetNotMigrate" type="button">Not migrate</button>
+      <button class="btn btn-ghost btn-sm" id="pwBulkSetCompleted" type="button">✓ Completed</button>
+      <button class="btn btn-danger btn-sm" id="pwBulkSetCancel" type="button">✕ Cancel</button>
       <button class="btn btn-danger btn-sm" id="pwBulkDelete" type="button">ลบที่เลือก</button>
       <button class="btn btn-ghost btn-sm" id="pwBulkClearSel" type="button">ล้างการเลือก</button>
     </div>` : ''}
 
     <div class="card" style="overflow-x:auto;">
       ${pageList.length? `
-      <table style="min-width:1230px;">
+      <table style="min-width:1180px;">
         <thead>
           <tr>
             <th style="width:30px;"><input type="checkbox" id="pwSelectAllPage" ${selectedOnPage===pageList.length&&pageList.length? 'checked':''}></th>
@@ -1966,32 +1991,40 @@ function viewPlanwork(){
             <th>Vender</th>
             <th>ReMark</th>
             <th>ReMark Mail</th>
-            <th>สถานะ</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          ${pageList.map(p=>`
-            <tr${p.completed?' style="opacity:.6;"':''}>
+          ${pageList.map(p=>{
+            const st = pwStatusOf(p);
+            const strike = st!=='pending';
+            const refOptions = PW_REF_STATUS.includes(p.reference) || !p.reference
+              ? PW_REF_STATUS
+              : [p.reference, ...PW_REF_STATUS];
+            return `
+            <tr${st==='cancelled'?' style="opacity:.55;"':(st==='completed'?' style="opacity:.6;"':'')}>
               <td><input type="checkbox" class="pw-row-chk" data-rowchk="${p.id}" ${state.planworkSelected.has(p.id)?'checked':''}></td>
               <td class="mono">${dmy(p.date)}</td>
               <td class="mono">${p.dnType?`<span class="badge ${p.dnType==='Night'?'night':'morning'}">${p.dnType}</span>`:''} ${p.dnTime||''}</td>
-              <td style="font-weight:600; ${p.completed?'text-decoration:line-through;':''}">${p.planNo||'-'}</td>
-              <td style="max-width:220px; white-space:pre-wrap; ${p.completed?'text-decoration:line-through;':''}">${p.detail||'-'}</td>
+              <td style="font-weight:600; ${strike?'text-decoration:line-through;':''}">${p.planNo||'-'}</td>
+              <td style="max-width:220px; white-space:pre-wrap; ${strike?'text-decoration:line-through;':''}">${p.detail||'-'}</td>
               <td>${p.node||'-'}</td>
-              <td>${p.reference||'-'}</td>
+              <td>
+                <select data-refstatus="${p.id}" class="badge-select ${st==='completed'?'ref-completed':(st==='cancelled'?'ref-cancel':'ref-pending')}">
+                  ${refOptions.map(o=>`<option value="${o}" ${p.reference===o?'selected':''}>${o}</option>`).join('')}
+                </select>
+              </td>
               <td>${p.assignBy||'-'}</td>
               <td>${p.workType||'-'}</td>
               <td>${p.vendor||'-'}</td>
               <td style="max-width:160px; white-space:pre-wrap;">${p.remark||'-'}</td>
               <td style="max-width:160px; white-space:pre-wrap;">${p.remarkMail||'-'}</td>
-              <td><span class="badge ${p.completed?'done':'pending'}">${p.completed?'Completed':'Pending'}</span></td>
               <td style="white-space:nowrap;">
-                <button class="btn ${p.completed?'btn-ghost':'btn-amber'} btn-sm" data-togglepw="${p.id}">${p.completed?'↺ Reopen':'✓ Completed'}</button>
                 <button class="btn btn-ghost btn-sm" data-editpw="${p.id}">แก้ไข</button>
                 <button class="btn btn-danger btn-sm" data-delpw="${p.id}">ลบ</button>
               </td>
-            </tr>`).join('')}
+            </tr>`;
+          }).join('')}
         </tbody>
       </table>
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-top:14px; padding-top:14px; border-top:1px solid var(--line);">
@@ -2269,7 +2302,11 @@ function openPlanworkDialog(existing){
       <div class="field"><label>Detail</label><textarea id="f_detail" rows="2" placeholder="รายละเอียดงาน">${existing? existing.detail||'':''}</textarea></div>
       <div class="field-row">
         <div class="field"><label>Node/MPLS</label><input id="f_node" value="${existing? existing.node||'':''}" placeholder="ชื่อ Node / MPLS"></div>
-        <div class="field"><label>Referance</label><input id="f_ref" value="${existing? existing.reference||'':''}" placeholder="เลขที่อ้างอิง"></div>
+        <div class="field"><label>Referance</label>
+          <select id="f_ref">
+            ${(()=>{ const cur = existing? existing.reference||'' : ''; const opts = (cur && !PW_REF_STATUS.includes(cur)) ? [cur, ...PW_REF_STATUS] : PW_REF_STATUS; return opts.map(o=>`<option value="${o}" ${cur===o?'selected':''}>${o}</option>`).join(''); })()}
+          </select>
+        </div>
       </div>
       <div class="field-row">
         <div class="field"><label>Assingment By</label><select id="f_assign"></select></div>
@@ -2439,6 +2476,131 @@ async function handleExcelImport(file){
     console.error(err);
     if(statusEl) statusEl.innerHTML = `<div class="banner" style="background:var(--red-dim); color:#8a1f1f;">⚠ นำเข้าไม่สำเร็จ: ${err.message||err}</div>`;
   }
+}
+
+/* ================= PLANWORK: BULK EDIT & BACKUP ================= */
+function openPwBulkEditDialog(ids){
+  const dlg = document.getElementById('dlg');
+  const count = ids.length;
+  dlg.innerHTML = `
+    <div class="dialog-head"><h3>แก้ไข Planwork พร้อมกัน (${count} รายการ)</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+    <div class="dialog-body">
+      <div style="font-size:12px; color:var(--slate-400); margin-bottom:10px;">ติ๊กเฉพาะช่องที่ต้องการเปลี่ยนค่า ระบบจะอัปเดตค่านั้นให้กับทุกรายการที่เลือกไว้ (${count} รายการ) ช่องที่ไม่ติ๊กจะไม่ถูกแก้ไข</div>
+
+      <div class="field-row">
+        <div class="field">
+          <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" class="bulkchk" data-target="f_date" style="width:auto;"> D/M/Y</label>
+          <input type="date" id="f_date" disabled>
+        </div>
+        <div class="field">
+          <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" class="bulkchk" data-target="f_dntype" style="width:auto;"> Day/Night Time</label>
+          <div style="display:flex; gap:6px;">
+            <select id="f_dntype" style="flex:0 0 90px;" disabled>
+              <option value="Day">Day</option>
+              <option value="Night">Night</option>
+            </select>
+            <input id="f_dntime" placeholder="เช่น 09:00-12:00" disabled>
+          </div>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" class="bulkchk" data-target="f_node" style="width:auto;"> Node/MPLS</label>
+          <input id="f_node" disabled>
+        </div>
+        <div class="field">
+          <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" class="bulkchk" data-target="f_ref" style="width:auto;"> Referance</label>
+          <select id="f_ref" disabled>${PW_REF_STATUS.map(o=>`<option value="${o}">${o}</option>`).join('')}</select>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" class="bulkchk" data-target="f_assign" style="width:auto;"> Assingment By</label>
+          <input id="f_assign" placeholder="ชื่อผู้รับผิดชอบ" disabled>
+        </div>
+        <div class="field">
+          <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" class="bulkchk" data-target="f_wtype" style="width:auto;"> Work Type</label>
+          <input id="f_wtype" disabled>
+        </div>
+      </div>
+
+      <div class="field">
+        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" class="bulkchk" data-target="f_vendor" style="width:auto;"> Vender</label>
+        <input id="f_vendor" disabled>
+      </div>
+      <div class="field">
+        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" class="bulkchk" data-target="f_remark" style="width:auto;"> ReMark</label>
+        <textarea id="f_remark" rows="2" disabled></textarea>
+      </div>
+      <div class="field">
+        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" class="bulkchk" data-target="f_remarkmail" style="width:auto;"> ReMark Mail</label>
+        <textarea id="f_remarkmail" rows="2" disabled></textarea>
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-ghost" id="dlgCancel">ยกเลิก</button>
+      <button class="btn btn-amber" id="saveBulkEdit">บันทึกทั้งหมด (${count} รายการ)</button>
+    </div>
+  `;
+  dlg.showModal();
+  dlg.querySelector('#dlgClose').onclick=()=>dlg.close();
+  dlg.querySelector('#dlgCancel').onclick=()=>dlg.close();
+
+  dlg.querySelectorAll('.bulkchk').forEach(chk=>{
+    chk.onchange = ()=>{
+      const targetId = chk.dataset.target;
+      const targetEl = dlg.querySelector('#'+targetId);
+      if(targetEl) targetEl.disabled = !chk.checked;
+      if(targetId==='f_dntype'){
+        const timeEl = dlg.querySelector('#f_dntime');
+        if(timeEl) timeEl.disabled = !chk.checked;
+      }
+    };
+  });
+
+  dlg.querySelector('#saveBulkEdit').onclick = async ()=>{
+    const changes = {};
+    if(dlg.querySelector('[data-target="f_date"]').checked) changes.date = dlg.querySelector('#f_date').value;
+    if(dlg.querySelector('[data-target="f_dntype"]').checked){
+      changes.dnType = dlg.querySelector('#f_dntype').value;
+      changes.dnTime = dlg.querySelector('#f_dntime').value.trim();
+    }
+    if(dlg.querySelector('[data-target="f_node"]').checked) changes.node = dlg.querySelector('#f_node').value.trim();
+    if(dlg.querySelector('[data-target="f_ref"]').checked) changes.reference = dlg.querySelector('#f_ref').value.trim();
+    if(dlg.querySelector('[data-target="f_assign"]').checked) changes.assignBy = dlg.querySelector('#f_assign').value.trim();
+    if(dlg.querySelector('[data-target="f_wtype"]').checked) changes.workType = dlg.querySelector('#f_wtype').value.trim();
+    if(dlg.querySelector('[data-target="f_vendor"]').checked) changes.vendor = dlg.querySelector('#f_vendor').value.trim();
+    if(dlg.querySelector('[data-target="f_remark"]').checked) changes.remark = dlg.querySelector('#f_remark').value.trim();
+    if(dlg.querySelector('[data-target="f_remarkmail"]').checked) changes.remarkMail = dlg.querySelector('#f_remarkmail').value.trim();
+
+    if(Object.keys(changes).length===0){ alert('กรุณาติ๊กอย่างน้อย 1 ช่องที่ต้องการแก้ไข'); return; }
+
+    state.planworks.forEach(p=>{ if(ids.includes(p.id)) Object.assign(p, changes); });
+    await saveList('planworks', state.planworks);
+    dlg.close();
+    renderContent();
+  };
+}
+
+function exportPlanworksBackup(){
+  if(!state.planworks.length){ alert('ไม่มีข้อมูล Planwork ให้ Export'); return; }
+  const rows = [['D/M/Y','Day/Night Time','Planwork_No','Detail','Node/MPLS','Referance','Assingment By','Work Type','Vender','ReMark','ReMark Mail','Status']];
+  state.planworks.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(p=>{
+    const st = pwStatusOf(p);
+    const status = st==='cancelled' ? 'Cancelled' : (st==='completed' ? 'Completed' : 'Pending');
+    rows.push([
+      dmy(p.date),
+      `${p.dnType||''}${p.dnTime? ' '+p.dnTime:''}`.trim(),
+      p.planNo||'', p.detail||'', p.node||'', p.reference||'', p.assignBy||'',
+      p.workType||'', p.vendor||'', p.remark||'', p.remarkMail||'', status
+    ]);
+  });
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, 'Planwork');
+  XLSX.writeFile(wb, `Planwork_Backup_${fmtDate(new Date())}.xlsx`);
 }
 
 /* ================= OT ================= */
@@ -2934,10 +3096,10 @@ function bindContentEvents(){
     state.planworks = state.planworks.filter(p=>p.id!==el.dataset.delpw);
     await saveList('planworks', state.planworks); renderContent();
   });
-  c.querySelectorAll('[data-togglepw]').forEach(el=> el.onclick= async ()=>{
-    const p = state.planworks.find(x=>x.id===el.dataset.togglepw);
+  c.querySelectorAll('[data-refstatus]').forEach(el=> el.onchange = async ()=>{
+    const p = state.planworks.find(x=>x.id===el.dataset.refstatus);
     if(!p) return;
-    p.completed = !p.completed;
+    p.reference = el.value;
     await saveList('planworks', state.planworks); renderContent();
   });
   const pwSearch = c.querySelector('#pwSearch');
@@ -2967,16 +3129,24 @@ function bindContentEvents(){
     });
     renderContent();
   };
-  const pwBulkComplete = c.querySelector('#pwBulkComplete');
-  if(pwBulkComplete) pwBulkComplete.onclick = async ()=>{
-    state.planworks.forEach(p=>{ if(state.planworkSelected.has(p.id)) p.completed = true; });
+  const pwBulkSetNotMigrate = c.querySelector('#pwBulkSetNotMigrate');
+  if(pwBulkSetNotMigrate) pwBulkSetNotMigrate.onclick = async ()=>{
+    state.planworks.forEach(p=>{ if(state.planworkSelected.has(p.id)) p.reference = 'Not migrate'; });
     await saveList('planworks', state.planworks); renderContent();
   };
-  const pwBulkReopen = c.querySelector('#pwBulkReopen');
-  if(pwBulkReopen) pwBulkReopen.onclick = async ()=>{
-    state.planworks.forEach(p=>{ if(state.planworkSelected.has(p.id)) p.completed = false; });
+  const pwBulkSetCompleted = c.querySelector('#pwBulkSetCompleted');
+  if(pwBulkSetCompleted) pwBulkSetCompleted.onclick = async ()=>{
+    state.planworks.forEach(p=>{ if(state.planworkSelected.has(p.id)) p.reference = 'Completed'; });
     await saveList('planworks', state.planworks); renderContent();
   };
+  const pwBulkSetCancel = c.querySelector('#pwBulkSetCancel');
+  if(pwBulkSetCancel) pwBulkSetCancel.onclick = async ()=>{
+    if(!confirm(`ยืนยันการตั้งค่า Referance เป็น "Cancel" สำหรับ Planwork ที่เลือก ${state.planworkSelected.size} รายการ?`)) return;
+    state.planworks.forEach(p=>{ if(state.planworkSelected.has(p.id)) p.reference = 'Cancel'; });
+    await saveList('planworks', state.planworks); renderContent();
+  };
+  const pwBulkEdit = c.querySelector('#pwBulkEdit');
+  if(pwBulkEdit) pwBulkEdit.onclick = ()=> openPwBulkEditDialog([...state.planworkSelected]);
   const pwBulkDelete = c.querySelector('#pwBulkDelete');
   if(pwBulkDelete) pwBulkDelete.onclick = async ()=>{
     if(!confirm(`ยืนยันการลบ Planwork ที่เลือก ${state.planworkSelected.size} รายการ?`)) return;
@@ -2986,6 +3156,18 @@ function bindContentEvents(){
   };
   const pwBulkClearSel = c.querySelector('#pwBulkClearSel');
   if(pwBulkClearSel) pwBulkClearSel.onclick = ()=>{ state.planworkSelected.clear(); renderContent(); };
+
+  const exportPwExcelBtn = c.querySelector('#exportPwExcel');
+  if(exportPwExcelBtn) exportPwExcelBtn.onclick = ()=> exportPlanworksBackup();
+  const clearAllPwBtn = c.querySelector('#clearAllPw');
+  if(clearAllPwBtn) clearAllPwBtn.onclick = async ()=>{
+    if(!state.planworks.length){ alert('ไม่มีข้อมูล Planwork ให้ล้าง'); return; }
+    if(!confirm(`⚠ ยืนยันการล้างข้อมูล Planwork ทั้งหมด ${state.planworks.length} รายการ?\nแนะนำให้กด "Export Excel (Backup)" เพื่อสำรองข้อมูลไว้ก่อน\n\nการลบนี้ไม่สามารถกู้คืนได้`)) return;
+    if(!confirm('ยืนยันอีกครั้ง: ต้องการลบข้อมูล Planwork ทั้งหมดจริงหรือไม่?')) return;
+    state.planworks = [];
+    state.planworkSelected.clear();
+    await saveList('planworks', state.planworks); renderContent();
+  };
 
   // planwork: pagination
   const pwPageSize = c.querySelector('#pwPageSize');
