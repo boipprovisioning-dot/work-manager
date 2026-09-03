@@ -1454,10 +1454,13 @@ function viewAppt(){
       <div><h1>นัดหมายติดตั้ง</h1><div class="sub">ส่งนัดหมายจากหน้างาน และติดตามสถานะการติดตั้ง</div></div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn btn-ghost" id="openSmcMonitor">📡 แจ้ง SMC Monitor</button>
+        <button class="btn btn-ghost" id="importApptExcel">⬆ อัปโหลดจาก Excel</button>
+        <input type="file" id="apptFileInput" accept=".xlsx,.xls" style="display:none;">
         <button class="btn btn-ghost" id="exportApptExcel">📊 Export Excel</button>
         <button class="btn btn-amber" id="addAppt">+ ส่งนัดหมายใหม่</button>
       </div>
     </div>
+    <div id="apptImportStatus"></div>
     <div id="apptActionStatus"></div>
     <div class="pill-tabs">
       <div class="pill-tab ${state.apptFilter==='all'?'active':''}" data-f="all">ทั้งหมด (${state.appointments.length})</div>
@@ -1582,6 +1585,88 @@ async function exportApptToExcel(){
   XLSX.utils.book_append_sheet(wb, ws, 'นัดหมายติดตั้ง');
   const filterLabel = state.apptFilter==='all' ? 'ทั้งหมด' : ((APPROVAL_STATUS.find(s=>s.v===state.apptFilter)||{}).label||state.apptFilter);
   XLSX.writeFile(wb, `นัดหมายติดตั้ง_${filterLabel}_${fmtDate(new Date())}.xlsx`);
+}
+
+/* ---------------- Excel import for Appointments (matches "ฟอร์มนัดหมายติดตั้ง.xlsx" header row) ---------------- */
+// Expected header row (sheet "นัดหมายติดตั้ง"): Circuit | วันที่ | เวลา | ช่างผู้รับผิดชอบ | เบอร์โทรช่าง | หมายเหตุ
+const APPT_HEADER_MAP = {
+  'circuit': 'customer',
+  'วันที่': 'date',
+  'เวลา': 'time',
+  'ช่างผู้รับผิดชอบ': 'technicianName',
+  'เบอร์โทรช่าง': 'technicianPhone',
+  'หมายเหตุ': 'note',
+};
+function normHeaderTH(s){ return String(s||'').trim().toLowerCase().replace(/\s+/g,''); }
+
+function parseApptTimeRange(raw){
+  const s = String(raw||'').trim();
+  if(!s) return {timeStart:'', timeEnd:'', time:''};
+  const parts = s.split('-').map(t=>t.trim()).filter(Boolean);
+  const timeStart = parts[0] || '';
+  const timeEnd = parts[1] || parts[0] || '';
+  const time = timeStart===timeEnd ? timeStart : `${timeStart}-${timeEnd}`;
+  return {timeStart, timeEnd, time};
+}
+
+async function handleApptExcelImport(file){
+  const statusEl = document.getElementById('apptImportStatus');
+  if(statusEl) statusEl.innerHTML = `<div class="banner">⏳ กำลังอ่านไฟล์ ${file.name} ...</div>`;
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array', cellDates:false});
+    // prefer a sheet literally named "นัดหมายติดตั้ง" (as in the template), else fall back to the first sheet
+    const sheetName = wb.SheetNames.find(n=> normHeaderTH(n)===normHeaderTH('นัดหมายติดตั้ง')) || wb.SheetNames[0];
+    const sheet = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:''});
+    if(!rows.length){ throw new Error('ไม่พบข้อมูลในไฟล์'); }
+
+    const headerRow = rows[0];
+    const colMap = {}; // colIndex -> fieldKey
+    headerRow.forEach((h, idx)=>{
+      const key = APPT_HEADER_MAP[normHeaderTH(h)];
+      if(key) colMap[idx] = key;
+    });
+    if(Object.keys(colMap).length===0){
+      throw new Error('ไม่พบหัวตารางที่ตรงกับรูปแบบไฟล์ "ฟอร์มนัดหมายติดตั้ง" (Circuit, วันที่, เวลา, ช่างผู้รับผิดชอบ, เบอร์โทรช่าง, หมายเหตุ) กรุณาตรวจสอบแถวแรกของไฟล์');
+    }
+
+    let imported = 0, skipped = 0;
+    for(let r=1; r<rows.length; r++){
+      const row = rows[r];
+      if(!row || row.every(c=>c===''||c===undefined||c===null)){ continue; }
+      const rec = {date:'', time:'', customer:'', technicianName:'', technicianPhone:'', note:''};
+      Object.entries(colMap).forEach(([idx, key])=>{
+        const val = row[Number(idx)];
+        if(key==='date') rec.date = parseFlexibleDate(val);
+        else rec[key] = String(val===undefined||val===null? '' : val).trim();
+      });
+      if(!rec.customer){ skipped++; continue; }
+      if(!rec.date) rec.date = fmtDate(new Date());
+      const {timeStart, timeEnd, time} = parseApptTimeRange(rec.time);
+      state.appointments.push({
+        id: uid(),
+        date: rec.date,
+        time,
+        timeStart, timeEnd,
+        customer: rec.customer,
+        technicianName: rec.technicianName,
+        technicianPhone: rec.technicianPhone,
+        note: rec.note,
+        approvalStatus: 'pending',
+        doneStatus: 'not_done',
+        submittedByName: session.user? session.user.name : '',
+        submittedByEmail: session.user? session.user.email||'' : '',
+      });
+      imported++;
+    }
+    await saveList('appointments', state.appointments);
+    if(statusEl) statusEl.innerHTML = `<div class="banner" style="background:var(--green-dim); color:#265c39;">✅ นำเข้าสำเร็จ ${imported} รายการ${skipped? ` (ข้ามแถวว่าง/ไม่มี Circuit ${skipped} แถว)`:''}</div>`;
+    renderContent();
+  }catch(err){
+    console.error(err);
+    if(statusEl) statusEl.innerHTML = `<div class="banner" style="background:var(--red-dim); color:#8a1f1f;">⚠ นำเข้าไม่สำเร็จ: ${err.message||err}</div>`;
+  }
 }
 
 /* ---------------- approval + notification email ---------------- */
@@ -3134,6 +3219,16 @@ function bindContentEvents(){
   const aAdd = c.querySelector('#addAppt'); if(aAdd) aAdd.onclick=()=>openApptDialog(null);
   const smcBtn = c.querySelector('#openSmcMonitor'); if(smcBtn) smcBtn.onclick=()=>openSmcMonitorDialog();
   const exportApptBtn = c.querySelector('#exportApptExcel'); if(exportApptBtn) exportApptBtn.onclick=()=>exportApptToExcel();
+  const importApptBtn = c.querySelector('#importApptExcel');
+  const apptFileInput = c.querySelector('#apptFileInput');
+  if(importApptBtn && apptFileInput){
+    importApptBtn.onclick = ()=> apptFileInput.click();
+    apptFileInput.onchange = (e)=>{
+      const file = e.target.files[0];
+      if(file) handleApptExcelImport(file);
+      apptFileInput.value = '';
+    };
+  }
   c.querySelectorAll('[data-editappt]').forEach(el=> el.onclick=()=> openApptDialog(state.appointments.find(a=>a.id===el.dataset.editappt)));
   c.querySelectorAll('[data-approveappt]').forEach(el=> el.onclick=()=> approveAppointment(el.dataset.approveappt));
   c.querySelectorAll('[data-doneappt]').forEach(el=> el.onclick=()=> setApptDone(el.dataset.doneappt, 'done', 'ทำเครื่องหมายนัดหมายนี้เป็น "เสร็จสิ้น" ใช่หรือไม่?'));
