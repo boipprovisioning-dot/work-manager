@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ศูนย์ควบคุมงาน</title>
+<title>Job Management</title>
 <style>
   :root{
     --navy-950:#0B1220;
@@ -202,7 +202,7 @@
 <div id="authScreen" class="auth-wrap" style="display:none;"></div>
 <div id="app" style="display:none;">
   <div id="sidebar">
-    <div class="brand"><span class="dot"></span> ศูนย์ควบคุมงาน</div>
+    <div class="brand"><span class="dot"></span> Job Management</div>
     <div id="nav"></div>
     <div id="userBox" style="border-top:1px solid rgba(255,255,255,.08); margin-top:10px; padding-top:12px;"></div>
     <div class="footnote">ข้อมูลทั้งหมดในระบบนี้ใช้ร่วมกันกับทุกคนที่เปิดหน้านี้<br><span style="opacity:.6;">Build: 2026-08-31-schedimport-v3-tzfix</span></div>
@@ -248,6 +248,39 @@ async function saveList(key, arr){
   }catch(e){ console.error('save fail', key, e); }
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+/* ---------------- realtime sync (Supabase Realtime) ---------------- */
+// ทำให้ทุกคนที่เปิดหน้านี้เห็นข้อมูลใหม่ทันทีที่มีคนอื่นบันทึกข้อมูล โดยไม่ต้อง refresh หน้าเว็บเอง
+// หมายเหตุ: ต้องเปิดใช้งาน Realtime ให้ตาราง app_data ในฝั่ง Supabase ก่อน (ดูคำแนะนำท้ายไฟล์นี้)
+function keyToStateField(key){
+  return {
+    'employees':'employees',
+    'shifts':'shifts',
+    'appointments':'appointments',
+    'ot-entries':'otEntries',
+    'leaves':'leaves',
+    'planworks':'planworks',
+    'users':'users',
+  }[key];
+}
+function subscribeRealtime(){
+  try{
+    supabaseClient
+      .channel('app_data_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_data' }, (payload)=>{
+        const key = (payload.new && payload.new.key) || (payload.old && payload.old.key);
+        const field = keyToStateField(key);
+        if(!field) return;
+        state[field] = (payload.eventType === 'DELETE') ? [] : ((payload.new && payload.new.value) || []);
+        // อัปเดตเฉพาะเนื้อหาบนหน้าจอ ไม่ไปยุ่งกับฟอร์ม/ไดอะล็อกที่กำลังเปิดอยู่ (dialog อยู่นอก #content)
+        if(session.user && document.getElementById('app').style.display !== 'none'){
+          renderNav();
+          renderContent();
+        }
+      })
+      .subscribe();
+  }catch(e){ console.error('realtime subscribe fail', e); }
+}
 
 /* ---------------- state ---------------- */
 let session = { user: null };
@@ -444,6 +477,8 @@ async function init(){
   } else {
     enterApp();
   }
+
+  subscribeRealtime();
 }
 
 /* ---------------- auth screens ---------------- */
@@ -472,7 +507,7 @@ function authMsgHtml(msg, msgType){
 function loginScreenHtml(msg, msgType){
   return `
     <div class="auth-card">
-      <div class="brand"><span class="dot"></span> ศูนย์ควบคุมงาน</div>
+      <div class="brand"><span class="dot"></span> Job Management</div>
       <div class="sub">เข้าสู่ระบบเพื่อจัดการเวร นัดหมาย OT และการลา</div>
       ${authMsgHtml(msg, msgType)}
       <div class="field"><label>ชื่อผู้ใช้ (Username)</label><input id="li_username" placeholder="ชื่อผู้ใช้ของคุณ"></div>
@@ -485,7 +520,7 @@ function loginScreenHtml(msg, msgType){
 function registerScreenHtml(msg, msgType){
   return `
     <div class="auth-card">
-      <div class="brand"><span class="dot"></span> ศูนย์ควบคุมงาน</div>
+      <div class="brand"><span class="dot"></span> Job Management</div>
       <div class="sub">ลงทะเบียนเข้าใช้เว็บนี้ — บัญชีต้องรอผู้ดูแลระบบอนุมัติก่อนจึงจะเข้าใช้งานได้</div>
       ${authMsgHtml(msg, msgType)}
       <div class="field"><label>ชื่อ-นามสกุล</label><input id="rg_name" placeholder="ชื่อ-นามสกุล"></div>
