@@ -307,6 +307,7 @@ let state = {
   planworkPage: 1,
   planworkPageSize: 10,
   planworkSelected: new Set(),
+  apptSelected: new Set(),
   reportPeriod: 'month',
   reportRef: fmtDate(new Date()),
 };
@@ -1448,6 +1449,9 @@ function viewAppt(){
   let list = state.appointments.slice().sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
   if(state.apptFilter!=='all') list = list.filter(a=>apptApprovalStatus(a)===state.apptFilter);
   const isAdmin = session.user && session.user.role==='admin';
+  const pendingInList = list.filter(a=> apptApprovalStatus(a)==='pending');
+  const selectedPendingInList = pendingInList.filter(a=> state.apptSelected.has(a.id)).length;
+  const selectedCount = state.apptSelected.size;
 
   return `
     <div class="topbar">
@@ -1466,16 +1470,23 @@ function viewAppt(){
       <div class="pill-tab ${state.apptFilter==='all'?'active':''}" data-f="all">ทั้งหมด (${state.appointments.length})</div>
       ${APPROVAL_STATUS.map(s=>`<div class="pill-tab ${state.apptFilter===s.v?'active':''}" data-f="${s.v}">${s.label} (${state.appointments.filter(a=>apptApprovalStatus(a)===s.v).length})</div>`).join('')}
     </div>
+    ${isAdmin && selectedCount? `
+    <div class="card" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 16px;">
+      <span style="font-size:12.5px; font-weight:600;">เลือกแล้ว ${selectedCount} รายการ</span>
+      <button class="btn btn-amber btn-sm" id="apptBulkApprove" type="button">✓ อนุมัติที่เลือก &amp; ร่างอีเมล</button>
+      <button class="btn btn-ghost btn-sm" id="apptBulkClearSel" type="button">ล้างการเลือก</button>
+    </div>` : ''}
     <div class="card">
       ${list.length? `
       <table>
-        <thead><tr><th>วันที่/เวลา</th><th>Circuit</th><th>ช่างผู้รับผิดชอบ</th><th>แจ้งโดย</th><th>สถานะอนุมัติ</th><th>สถานะงาน</th><th></th></tr></thead>
+        <thead><tr>${isAdmin? `<th style="width:30px;"><input type="checkbox" id="apptSelectAllChk" ${pendingInList.length && selectedPendingInList===pendingInList.length? 'checked':''}></th>`:''}<th>วันที่/เวลา</th><th>Circuit</th><th>ช่างผู้รับผิดชอบ</th><th>แจ้งโดย</th><th>สถานะอนุมัติ</th><th>สถานะงาน</th><th></th></tr></thead>
         <tbody>
           ${list.map(a=>{
             const appr = apptApprovalStatus(a);
             const done = apptDoneStatus(a);
             return `
             <tr>
+              ${isAdmin? `<td>${appr==='pending'? `<input type="checkbox" class="appt-row-chk" data-rowchk="${a.id}" ${state.apptSelected.has(a.id)?'checked':''}>` : ''}</td>`:''}
               <td class="mono">${thaiDate(a.date)}<br>${a.time||''}</td>
               <td style="font-weight:600;">${a.customer}</td>
               <td>${a.technicianName||empName(a.employeeId)||'-'}${a.technicianPhone? `<div style="font-size:11px;color:var(--slate-400);">${a.technicianPhone}</div>`:''}</td>
@@ -1822,6 +1833,107 @@ async function doApproveAppointment(apptId, chosenEmpIds){
   // update the table behind the dialog; the dialog itself is a separate element
   // so this re-render never wipes out what we're about to show in it.
   renderContent();
+}
+
+/* ---------------- Bulk approve (checkbox-select multiple appointments) + one combined email draft ---------------- */
+function bulkApproveEmailFields(appts){
+  const FIXED_CC = 'bo-ip-pro@ericsson.com';
+  const toList = Array.from(new Set(appts.map(a=> (a.submittedByEmail||'').trim()).filter(Boolean)));
+  const ccSet = new Set([FIXED_CC]);
+  const blocks = appts.map(appt=>{
+    const chosenEmps = (appt.notifiedEmployeeIds||[]).map(id=> state.employees.find(e=>e.id===id)).filter(Boolean);
+    chosenEmps.forEach(e=>{ if(e.email) ccSet.add(e.email.trim()); });
+    const onDutyList = chosenEmps.map(e=> `${e.name} โทร ${e.phone||'-'}`);
+    return [
+      `• Circuit ${appt.customer} — วันที่ ${dmy(appt.date)} ${appt.time||''}`,
+      `  ช่างผู้รับผิดชอบ: ${appt.technicianName||empName(appt.employeeId)||'-'}`,
+      `  เบอร์โทรช่างที่รับผิดชอบ: ${appt.technicianPhone||'-'}`,
+      appt.note? `  หมายเหตุงาน: ${appt.note}` : null,
+      `  ผู้อยู่เวรที่แจ้ง: ${onDutyList.length? onDutyList.join(', ') : '(ไม่ได้ระบุชื่อผู้อยู่เวร)'}`,
+    ].filter(l=> l!==null).join('\n');
+  });
+  const subject = `นัดหมายติดตั้งได้รับการอนุมัติแล้ว (${appts.length} รายการ)`;
+  const body = [
+    `นัดหมายติดตั้งต่อไปนี้ได้รับการอนุมัติแล้ว จำนวน ${appts.length} รายการ:`,
+    '',
+    blocks.join('\n\n'),
+  ].join('\n');
+  return { to: toList.join(','), cc: Array.from(ccSet).join(','), subject, body };
+}
+
+function renderBulkApproveEmailDialog(appts){
+  const dlg = document.getElementById('dlg');
+  const withEmail = appts.filter(a=> (a.submittedByEmail||'').trim());
+  if(!withEmail.length){
+    dlg.innerHTML = `
+      <div class="dialog-head"><h3>อนุมัติสำเร็จ</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+      <div class="dialog-body">
+        <div class="banner" style="background:var(--amber-dim); color:#8a5a0c;">✅ อนุมัติแล้ว ${appts.length} รายการ แต่ไม่มีอีเมลผู้แจ้งของรายการที่เลือก จึงไม่สามารถร่างอีเมลแจ้งกลับได้</div>
+      </div>
+      <div class="dialog-foot"><button class="btn btn-amber" id="dlgClose2">ปิด</button></div>
+    `;
+    dlg.showModal();
+    dlg.querySelector('#dlgClose').onclick = ()=> dlg.close();
+    dlg.querySelector('#dlgClose2').onclick = ()=> dlg.close();
+    return;
+  }
+  const f = bulkApproveEmailFields(withEmail);
+  const skippedNote = appts.length!==withEmail.length? `<br>หมายเหตุ: มี ${appts.length-withEmail.length} รายการที่ไม่มีอีเมลผู้แจ้ง จึงไม่ได้รวมอยู่ในฉบับร่างนี้` : '';
+  dlg.innerHTML = `
+    <div class="dialog-head"><h3>อนุมัติสำเร็จ ${appts.length} รายการ — ร่างอีเมลแจ้งผลรวม</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+    <div class="dialog-body">
+      <div class="banner" style="background:var(--green-dim); color:#265c39; margin-bottom:12px;">✅ อนุมัตินัดหมายแล้ว ${appts.length} รายการ — ตรวจ/แก้ไขเนื้อหาด้านล่างก่อนเปิดส่งอีเมลเอง (ไม่มีการส่งอัตโนมัติ)${skippedNote}</div>
+      <div class="field"><label>ถึง (To)</label><textarea id="apprTo" rows="2">${f.to}</textarea></div>
+      <div class="field"><label>สำเนา (Cc)</label><textarea id="apprCc" rows="2">${f.cc}</textarea></div>
+      <div class="field"><label>หัวข้อ (Subject)</label><input id="apprSubject" value="${f.subject}"></div>
+      <div class="field"><label>เนื้อหา (Body)</label><textarea id="apprBody" rows="14">${f.body}</textarea></div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-ghost" id="apprCopyBody" type="button">คัดลอกเนื้อหา</button>
+      <button class="btn" id="apprOpenMail" type="button" style="background:var(--green); color:#fff;">✉ เปิดในอีเมล</button>
+    </div>
+  `;
+  dlg.showModal();
+  dlg.querySelector('#dlgClose').onclick = ()=> dlg.close();
+  dlg.querySelector('#apprCopyBody').onclick = async ()=>{
+    const btn = dlg.querySelector('#apprCopyBody');
+    try{ await navigator.clipboard.writeText(dlg.querySelector('#apprBody').value); btn.textContent='คัดลอกแล้ว ✓'; setTimeout(()=>btn.textContent='คัดลอกเนื้อหา', 1500); }
+    catch(e){ alert('คัดลอกไม่สำเร็จ กรุณาเลือกข้อความด้วยตนเอง'); }
+  };
+  dlg.querySelector('#apprOpenMail').onclick = ()=>{
+    const to = dlg.querySelector('#apprTo').value.trim();
+    const cc = dlg.querySelector('#apprCc').value.trim();
+    const subject = dlg.querySelector('#apprSubject').value;
+    const body = dlg.querySelector('#apprBody').value;
+    window.location.href = buildMailtoLink(to, cc, subject, body);
+  };
+}
+
+async function bulkApproveAppts(){
+  const ids = Array.from(state.apptSelected).filter(id=>{
+    const a = state.appointments.find(x=>x.id===id);
+    return a && apptApprovalStatus(a)==='pending';
+  });
+  if(!ids.length){ alert('กรุณาเลือกนัดหมายที่ยัง "รออนุมัติ" อย่างน้อย 1 รายการ'); return; }
+  if(!confirm(`ยืนยันอนุมัตินัดหมายที่เลือก ${ids.length} รายการ และร่างอีเมลแจ้งผลรวมกัน?`)) return;
+
+  const approvedAppts = [];
+  for(const id of ids){
+    const appt = state.appointments.find(a=>a.id===id);
+    if(!appt) continue;
+    const onDuty = state.shifts.filter(s=> s.date===appt.date)
+      .map(s=> state.employees.find(x=>x.id===s.employeeId))
+      .filter(Boolean);
+    appt.approvalStatus = 'approved';
+    appt.approvedBy = session.user.name;
+    appt.approvedAt = fmtDate(new Date());
+    appt.notifiedEmployeeIds = onDuty.length? [onDuty[0].id] : [];
+    approvedAppts.push(appt);
+  }
+  await saveList('appointments', state.appointments);
+  state.apptSelected.clear();
+  renderContent();
+  renderBulkApproveEmailDialog(approvedAppts);
 }
 
 async function setApptApproval(apptId, approvalStatus, confirmMsg){
@@ -3242,6 +3354,23 @@ function bindContentEvents(){
     await saveList('appointments', state.appointments); renderContent();
   });
   c.querySelectorAll('.pill-tab[data-f]').forEach(el=> el.onclick=()=>{ state.apptFilter = el.dataset.f; renderContent(); });
+
+  // appointments: bulk-select + approve & draft combined email
+  c.querySelectorAll('.appt-row-chk').forEach(el=> el.onchange = ()=>{
+    if(el.checked) state.apptSelected.add(el.dataset.rowchk);
+    else state.apptSelected.delete(el.dataset.rowchk);
+    renderContent();
+  });
+  const apptSelectAllChk = c.querySelector('#apptSelectAllChk');
+  if(apptSelectAllChk) apptSelectAllChk.onchange = ()=>{
+    c.querySelectorAll('.appt-row-chk').forEach(el=>{
+      if(apptSelectAllChk.checked) state.apptSelected.add(el.dataset.rowchk);
+      else state.apptSelected.delete(el.dataset.rowchk);
+    });
+    renderContent();
+  };
+  const apptBulkApprove = c.querySelector('#apptBulkApprove'); if(apptBulkApprove) apptBulkApprove.onclick = ()=> bulkApproveAppts();
+  const apptBulkClearSel = c.querySelector('#apptBulkClearSel'); if(apptBulkClearSel) apptBulkClearSel.onclick = ()=>{ state.apptSelected.clear(); renderContent(); };
 
   // planwork
   const pwAdd = c.querySelector('#addPlanwork'); if(pwAdd) pwAdd.onclick=()=>openPlanworkDialog(null);
