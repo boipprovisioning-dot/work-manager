@@ -301,6 +301,9 @@ let state = {
   otMonth: new Date().getMonth(),
   otYear: new Date().getFullYear(),
   apptFilter: 'all',
+  apptSearch: '',
+  apptDateFrom: '',
+  apptDoneFilter: 'all',
   planworkSearch: '',
   planworkDateFrom: '',
   planworkDateTo: '',
@@ -1448,10 +1451,22 @@ async function handleScheduleExcelImport(file, clearFirst){
 function viewAppt(){
   let list = state.appointments.slice().sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
   if(state.apptFilter!=='all') list = list.filter(a=>apptApprovalStatus(a)===state.apptFilter);
+  const q = state.apptSearch.trim().toLowerCase();
+  if(q){
+    list = list.filter(a=>
+      (a.customer||'').toLowerCase().includes(q) ||
+      (a.technicianName||'').toLowerCase().includes(q) ||
+      (a.technicianPhone||'').toLowerCase().includes(q) ||
+      (a.submittedByName||'').toLowerCase().includes(q)
+    );
+  }
+  if(state.apptDateFrom){ list = list.filter(a=> (a.date||'') >= state.apptDateFrom); }
+  if(state.apptDoneFilter!=='all'){ list = list.filter(a=> apptDoneStatus(a)===state.apptDoneFilter); }
   const isAdmin = session.user && session.user.role==='admin';
   const pendingInList = list.filter(a=> apptApprovalStatus(a)==='pending');
   const selectedPendingInList = pendingInList.filter(a=> state.apptSelected.has(a.id)).length;
   const selectedCount = state.apptSelected.size;
+  const hasActiveFilters = q || state.apptDateFrom || state.apptDoneFilter!=='all';
 
   return `
     <div class="topbar">
@@ -1469,6 +1484,26 @@ function viewAppt(){
     <div class="pill-tabs">
       <div class="pill-tab ${state.apptFilter==='all'?'active':''}" data-f="all">ทั้งหมด (${state.appointments.length})</div>
       ${APPROVAL_STATUS.map(s=>`<div class="pill-tab ${state.apptFilter===s.v?'active':''}" data-f="${s.v}">${s.label} (${state.appointments.filter(a=>apptApprovalStatus(a)===s.v).length})</div>`).join('')}
+    </div>
+    <div class="filters">
+      <div class="field" style="min-width:220px;">
+        <label>ค้นหา (Circuit / ช่างผู้รับผิดชอบ / แจ้งโดย)</label>
+        <input id="apptSearch" value="${state.apptSearch}" placeholder="ค้นหา Circuit, ชื่อช่าง, เบอร์โทร, ผู้แจ้ง ...">
+      </div>
+      <div class="field" style="min-width:150px;">
+        <label>วันที่นัดหมาย</label>
+        <input type="date" id="apptDateFrom" value="${state.apptDateFrom||''}">
+      </div>
+      <div class="field" style="min-width:150px;">
+        <label>สถานะงาน</label>
+        <select id="apptDoneFilter">
+          <option value="all" ${state.apptDoneFilter==='all'?'selected':''}>ทั้งหมด</option>
+          ${DONE_STATUS.map(s=>`<option value="${s.v}" ${state.apptDoneFilter===s.v?'selected':''}>${s.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field" style="flex:0 0 auto; align-self:flex-end;">
+        <button class="btn btn-ghost" id="apptFilterClear" type="button">ล้างตัวกรอง</button>
+      </div>
     </div>
     ${isAdmin && selectedCount? `
     <div class="card" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 16px;">
@@ -1504,7 +1539,7 @@ function viewAppt(){
             </tr>`;
           }).join('')}
         </tbody>
-      </table>` : `<div class="empty">ไม่มีนัดหมายในหมวดนี้</div>`}
+      </table>` : `<div class="empty">ไม่มีนัดหมาย${hasActiveFilters? 'ที่ตรงกับการค้นหา/ตัวกรอง':'ในหมวดนี้'}</div>`}
     </div>
   `;
 }
@@ -3370,6 +3405,20 @@ function bindContentEvents(){
     await saveList('appointments', state.appointments); renderContent();
   });
   c.querySelectorAll('.pill-tab[data-f]').forEach(el=> el.onclick=()=>{ state.apptFilter = el.dataset.f; renderContent(); });
+
+  // appointments: header-based filters (search / date range / สถานะงาน)
+  const apptSearch = c.querySelector('#apptSearch');
+  if(apptSearch){
+    apptSearch.oninput = ()=>{ state.apptSearch = apptSearch.value; };
+    apptSearch.onkeydown = (e)=>{ if(e.key==='Enter'){ renderContent(); } };
+    apptSearch.onblur = ()=>{ renderContent(); };
+  }
+  const apptDateFrom = c.querySelector('#apptDateFrom');
+  if(apptDateFrom) apptDateFrom.onchange = ()=>{ state.apptDateFrom = apptDateFrom.value; renderContent(); };
+  const apptDoneFilter = c.querySelector('#apptDoneFilter');
+  if(apptDoneFilter) apptDoneFilter.onchange = ()=>{ state.apptDoneFilter = apptDoneFilter.value; renderContent(); };
+  const apptFilterClear = c.querySelector('#apptFilterClear');
+  if(apptFilterClear) apptFilterClear.onclick = ()=>{ state.apptSearch=''; state.apptDateFrom=''; state.apptDoneFilter='all'; renderContent(); };
 
   // appointments: bulk-select + approve & draft combined email
   c.querySelectorAll('.appt-row-chk').forEach(el=> el.onchange = ()=>{
