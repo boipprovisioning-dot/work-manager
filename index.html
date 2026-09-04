@@ -1486,7 +1486,7 @@ function viewAppt(){
             const done = apptDoneStatus(a);
             return `
             <tr>
-              ${isAdmin? `<td>${appr==='pending'? `<label style="display:flex; align-items:center; justify-content:center; padding:6px; cursor:pointer; width:100%; box-sizing:border-box;"><input type="checkbox" class="appt-row-chk" data-rowchk="${a.id}" style="width:18px; height:18px; cursor:pointer;" ${state.apptSelected.has(a.id)?'checked':''}></label>` : ''}</td>`:''}
+              ${isAdmin? `<td>${appr==='pending'? `<label style="display:flex; align-items:center; justify-content:center; padding:6px; cursor:pointer; width:100%; box-sizing:border-box;"><input type="checkbox" class="appt-row-chk" data-apptrowchk="${a.id}" style="width:18px; height:18px; cursor:pointer;" ${state.apptSelected.has(a.id)?'checked':''}></label>` : ''}</td>`:''}
               <td class="mono">${thaiDate(a.date)}<br>${a.time||''}</td>
               <td style="font-weight:600;">${a.customer}</td>
               <td>${a.technicianName||empName(a.employeeId)||'-'}${a.technicianPhone? `<div style="font-size:11px;color:var(--slate-400);">${a.technicianPhone}</div>`:''}</td>
@@ -3372,15 +3372,15 @@ function bindContentEvents(){
 
   // appointments: bulk-select + approve & draft combined email
   c.querySelectorAll('.appt-row-chk').forEach(el=> el.onchange = ()=>{
-    if(el.checked) state.apptSelected.add(el.dataset.rowchk);
-    else state.apptSelected.delete(el.dataset.rowchk);
+    if(el.checked) state.apptSelected.add(el.dataset.apptrowchk);
+    else state.apptSelected.delete(el.dataset.apptrowchk);
     renderContent();
   });
   const apptSelectAllChk = c.querySelector('#apptSelectAllChk');
   if(apptSelectAllChk) apptSelectAllChk.onchange = ()=>{
     c.querySelectorAll('.appt-row-chk').forEach(el=>{
-      if(apptSelectAllChk.checked) state.apptSelected.add(el.dataset.rowchk);
-      else state.apptSelected.delete(el.dataset.rowchk);
+      if(apptSelectAllChk.checked) state.apptSelected.add(el.dataset.apptrowchk);
+      else state.apptSelected.delete(el.dataset.apptrowchk);
     });
     renderContent();
   };
