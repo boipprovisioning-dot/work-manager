@@ -1769,7 +1769,7 @@ function approveEmailFields(appt){
     `ผู้อยู่เวรที่แจ้งในวันที่ ${dmy(appt.date)}:`,
     onDutyList.length? onDutyList.map(l=>`- ${l}`).join('\n') : '(ไม่ได้ระบุชื่อผู้อยู่เวร)',
   ].filter(l=> l!==null).join('\n');
-  return { to: appt.submittedByEmail||'', cc: ccList.join(','), subject, body: bodyLines };
+  return { to: appt.submittedByEmail||'', cc: ccList.join('; '), subject, body: bodyLines };
 }
 
 // after the appointment is saved as approved, turn the SAME dialog into an
@@ -1860,7 +1860,7 @@ function bulkApproveEmailFields(appts){
     '',
     blocks.join(`\n\n${SEPARATOR}\n\n`),
   ].join('\n');
-  return { to: toList.join(','), cc: Array.from(ccSet).join(','), subject, body };
+  return { to: toList.join('; '), cc: Array.from(ccSet).join('; '), subject, body };
 }
 
 function renderBulkApproveEmailDialog(appts){
