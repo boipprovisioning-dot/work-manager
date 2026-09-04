@@ -302,7 +302,7 @@ let state = {
   otYear: new Date().getFullYear(),
   apptFilter: 'all',
   apptSearch: '',
-  apptDateFrom: '',
+  apptDate: '',
   apptDoneFilter: 'all',
   planworkSearch: '',
   planworkDateFrom: '',
@@ -1460,13 +1460,13 @@ function viewAppt(){
       (a.submittedByName||'').toLowerCase().includes(q)
     );
   }
-  if(state.apptDateFrom){ list = list.filter(a=> (a.date||'') >= state.apptDateFrom); }
+  if(state.apptDate){ list = list.filter(a=> (a.date||'')===state.apptDate); }
   if(state.apptDoneFilter!=='all'){ list = list.filter(a=> apptDoneStatus(a)===state.apptDoneFilter); }
   const isAdmin = session.user && session.user.role==='admin';
   const pendingInList = list.filter(a=> apptApprovalStatus(a)==='pending');
   const selectedPendingInList = pendingInList.filter(a=> state.apptSelected.has(a.id)).length;
   const selectedCount = state.apptSelected.size;
-  const hasActiveFilters = q || state.apptDateFrom || state.apptDoneFilter!=='all';
+  const hasActiveFilters = q || state.apptDate || state.apptDoneFilter!=='all';
 
   return `
     <div class="topbar">
@@ -1492,7 +1492,7 @@ function viewAppt(){
       </div>
       <div class="field" style="min-width:150px;">
         <label>วันที่นัดหมาย</label>
-        <input type="date" id="apptDateFrom" value="${state.apptDateFrom||''}">
+        <input type="date" id="apptDate" value="${state.apptDate||''}">
       </div>
       <div class="field" style="min-width:150px;">
         <label>สถานะงาน</label>
@@ -3413,12 +3413,12 @@ function bindContentEvents(){
     apptSearch.onkeydown = (e)=>{ if(e.key==='Enter'){ renderContent(); } };
     apptSearch.onblur = ()=>{ renderContent(); };
   }
-  const apptDateFrom = c.querySelector('#apptDateFrom');
-  if(apptDateFrom) apptDateFrom.onchange = ()=>{ state.apptDateFrom = apptDateFrom.value; renderContent(); };
+  const apptDate = c.querySelector('#apptDate');
+  if(apptDate) apptDate.onchange = ()=>{ state.apptDate = apptDate.value; renderContent(); };
   const apptDoneFilter = c.querySelector('#apptDoneFilter');
   if(apptDoneFilter) apptDoneFilter.onchange = ()=>{ state.apptDoneFilter = apptDoneFilter.value; renderContent(); };
   const apptFilterClear = c.querySelector('#apptFilterClear');
-  if(apptFilterClear) apptFilterClear.onclick = ()=>{ state.apptSearch=''; state.apptDateFrom=''; state.apptDoneFilter='all'; renderContent(); };
+  if(apptFilterClear) apptFilterClear.onclick = ()=>{ state.apptSearch=''; state.apptDate=''; state.apptDoneFilter='all'; renderContent(); };
 
   // appointments: bulk-select + approve & draft combined email
   c.querySelectorAll('.appt-row-chk').forEach(el=> el.onchange = ()=>{
