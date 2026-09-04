@@ -656,7 +656,7 @@ function viewOverview(){
 
     <div class="card">
       <h3>เวรวันนี้ <span class="hint">${thaiDate(today)}</span></h3>
-      ${todayShifts.length? `<table><thead><tr><th>พนักงาน</th><th>กะ</th></tr></thead><tbody>
+      ${todayShifts.length? `<table><thead><tr><th>พนักงาน</th><th>เวร</th></tr></thead><tbody>
         ${todayShifts.map(s=>`<tr><td>${empName(s.employeeId)}</td><td>${shiftBadge()}</td></tr>`).join('')}
       </tbody></table>` : `<div class="empty">ยังไม่มีการจัดเวรวันนี้</div>`}
     </div>
@@ -922,7 +922,7 @@ function viewReport(){
     </div>
 
     <div class="grid-stats">
-      <div class="stat-card amber"><div class="n">${shiftsInRange.length}</div><div class="l">กะที่จัดทั้งหมด</div></div>
+      <div class="stat-card amber"><div class="n">${shiftsInRange.length}</div><div class="l">เวรที่จัดทั้งหมด</div></div>
       <div class="stat-card teal"><div class="n">${apptsInRange.length}</div><div class="l">นัดหมายติดตั้ง</div></div>
       <div class="stat-card violet"><div class="n">${pwInRange.length}</div><div class="l">Planwork</div></div>
       <div class="stat-card amber"><div class="n">${otSumAll.toFixed(1)}</div><div class="l">ชั่วโมง OT รวม</div></div>
@@ -1006,7 +1006,7 @@ async function exportReportToExcel(){
       ['ช่วงวันที่', `${d.start} ถึง ${d.end}`],
       [],
       ['หัวข้อ','จำนวน'],
-      ['กะที่จัดทั้งหมด', d.shiftsInRange.length],
+      ['เวรที่จัดทั้งหมด', d.shiftsInRange.length],
       ['นัดหมายติดตั้ง', d.apptsInRange.length],
       ['Planwork', d.pwInRange.length],
       ['Planwork Completed', d.pwCompletedCount],
@@ -1062,7 +1062,7 @@ async function exportReportToPptx(){
 
     const statsChart = await renderChartPng({
       type:'bar',
-      data:{ labels:['กะ','นัดหมาย','Planwork','OT (ชม.)','ลา (วัน)'],
+      data:{ labels:['เวร','นัดหมาย','Planwork','OT (ชม.)','ลา (วัน)'],
         datasets:[{ label:'ภาพรวม', data:[d.shiftsInRange.length, d.apptsInRange.length, d.pwInRange.length, Number(d.otSumAll.toFixed(1)), d.totalLeaveDays], backgroundColor:['#F2A93B','#159E93','#6E62C9','#F2A93B','#DA5B5B'] }] },
       options:{ plugins:{ legend:{display:false} } }
     }, 900, 500);
