@@ -657,7 +657,7 @@ function viewOverview(){
 
     <div class="card">
       <h3>เวรวันนี้ <span class="hint">${thaiDate(today)}</span></h3>
-      ${todayShifts.length? `<table><thead><tr><th>พนักงาน</th><th>กะ</th></tr></thead><tbody>
+      ${todayShifts.length? `<table><thead><tr><th>พนักงาน</th><th>เวร</th></tr></thead><tbody>
         ${todayShifts.map(s=>`<tr><td>${empName(s.employeeId)}</td><td>${shiftBadge()}</td></tr>`).join('')}
       </tbody></table>` : `<div class="empty">ยังไม่มีการจัดเวรวันนี้</div>`}
     </div>
@@ -923,7 +923,7 @@ function viewReport(){
     </div>
 
     <div class="grid-stats">
-      <div class="stat-card amber"><div class="n">${shiftsInRange.length}</div><div class="l">กะที่จัดทั้งหมด</div></div>
+      <div class="stat-card amber"><div class="n">${shiftsInRange.length}</div><div class="l">เวรที่จัดทั้งหมด</div></div>
       <div class="stat-card teal"><div class="n">${apptsInRange.length}</div><div class="l">นัดหมายติดตั้ง</div></div>
       <div class="stat-card violet"><div class="n">${pwInRange.length}</div><div class="l">Planwork</div></div>
       <div class="stat-card amber"><div class="n">${otSumAll.toFixed(1)}</div><div class="l">ชั่วโมง OT รวม</div></div>
@@ -1007,7 +1007,7 @@ async function exportReportToExcel(){
       ['ช่วงวันที่', `${d.start} ถึง ${d.end}`],
       [],
       ['หัวข้อ','จำนวน'],
-      ['กะที่จัดทั้งหมด', d.shiftsInRange.length],
+      ['เวรที่จัดทั้งหมด', d.shiftsInRange.length],
       ['นัดหมายติดตั้ง', d.apptsInRange.length],
       ['Planwork', d.pwInRange.length],
       ['Planwork Completed', d.pwCompletedCount],
@@ -1063,7 +1063,7 @@ async function exportReportToPptx(){
 
     const statsChart = await renderChartPng({
       type:'bar',
-      data:{ labels:['กะ','นัดหมาย','Planwork','OT (ชม.)','ลา (วัน)'],
+      data:{ labels:['เวร','นัดหมาย','Planwork','OT (ชม.)','ลา (วัน)'],
         datasets:[{ label:'ภาพรวม', data:[d.shiftsInRange.length, d.apptsInRange.length, d.pwInRange.length, Number(d.otSumAll.toFixed(1)), d.totalLeaveDays], backgroundColor:['#F2A93B','#159E93','#6E62C9','#F2A93B','#DA5B5B'] }] },
       options:{ plugins:{ legend:{display:false} } }
     }, 900, 500);
@@ -1479,14 +1479,14 @@ function viewAppt(){
     <div class="card">
       ${list.length? `
       <table>
-        <thead><tr>${isAdmin? `<th style="width:30px;"><input type="checkbox" id="apptSelectAllChk" ${pendingInList.length && selectedPendingInList===pendingInList.length? 'checked':''}></th>`:''}<th>วันที่/เวลา</th><th>Circuit</th><th>ช่างผู้รับผิดชอบ</th><th>แจ้งโดย</th><th>สถานะอนุมัติ</th><th>สถานะงาน</th><th></th></tr></thead>
+        <thead><tr>${isAdmin? `<th style="width:36px;"><label style="display:flex; align-items:center; justify-content:center; padding:6px; cursor:pointer;"><input type="checkbox" id="apptSelectAllChk" style="width:18px; height:18px; cursor:pointer;" ${pendingInList.length && selectedPendingInList===pendingInList.length? 'checked':''}></label></th>`:''}<th>วันที่/เวลา</th><th>Circuit</th><th>ช่างผู้รับผิดชอบ</th><th>แจ้งโดย</th><th>สถานะอนุมัติ</th><th>สถานะงาน</th><th></th></tr></thead>
         <tbody>
           ${list.map(a=>{
             const appr = apptApprovalStatus(a);
             const done = apptDoneStatus(a);
             return `
             <tr>
-              ${isAdmin? `<td>${appr==='pending'? `<input type="checkbox" class="appt-row-chk" data-rowchk="${a.id}" ${state.apptSelected.has(a.id)?'checked':''}>` : ''}</td>`:''}
+              ${isAdmin? `<td>${appr==='pending'? `<label style="display:flex; align-items:center; justify-content:center; padding:6px; cursor:pointer; width:100%; box-sizing:border-box;"><input type="checkbox" class="appt-row-chk" data-rowchk="${a.id}" style="width:18px; height:18px; cursor:pointer;" ${state.apptSelected.has(a.id)?'checked':''}></label>` : ''}</td>`:''}
               <td class="mono">${thaiDate(a.date)}<br>${a.time||''}</td>
               <td style="font-weight:600;">${a.customer}</td>
               <td>${a.technicianName||empName(a.employeeId)||'-'}${a.technicianPhone? `<div style="font-size:11px;color:var(--slate-400);">${a.technicianPhone}</div>`:''}</td>
@@ -1497,6 +1497,7 @@ function viewAppt(){
                 ${isAdmin && appr==='pending'? `<button class="btn btn-amber btn-sm" data-approveappt="${a.id}">✓ อนุมัติ</button>` : ''}
                 ${isAdmin && appr==='approved' && done!=='done'? `<button class="btn btn-ghost btn-sm" data-doneappt="${a.id}">ทำเครื่องหมายเสร็จสิ้น</button>` : ''}
                 ${isAdmin && appr!=='cancelled' && done!=='done'? `<button class="btn btn-ghost btn-sm" data-cancelappt="${a.id}">ยกเลิก</button>` : ''}
+                ${isAdmin && appr!=='pending'? `<button class="btn btn-ghost btn-sm" data-reopenappt="${a.id}">↺ กลับไปรออนุมัติ</button>` : ''}
                 <button class="btn btn-ghost btn-sm" data-editappt="${a.id}">แก้ไข</button>
                 <button class="btn btn-danger btn-sm" data-delappt="${a.id}">ลบ</button>
               </td>
@@ -1941,6 +1942,19 @@ async function setApptApproval(apptId, approvalStatus, confirmMsg){
   if(!appt) return;
   if(confirmMsg && !confirm(confirmMsg)) return;
   appt.approvalStatus = approvalStatus;
+  await saveList('appointments', state.appointments);
+  renderContent();
+}
+
+async function revertApptToPending(apptId){
+  const appt = state.appointments.find(a=>a.id===apptId);
+  if(!appt) return;
+  if(!confirm(`ย้อนสถานะนัดหมาย Circuit "${appt.customer}" กลับไปเป็น "รออนุมัติ" ใช่หรือไม่? (ข้อมูลผู้อนุมัติเดิมจะถูกล้าง)`)) return;
+  appt.approvalStatus = 'pending';
+  delete appt.approvedBy;
+  delete appt.approvedAt;
+  delete appt.notifiedEmployeeIds;
+  appt.doneStatus = 'not_done';
   await saveList('appointments', state.appointments);
   renderContent();
 }
@@ -3348,6 +3362,7 @@ function bindContentEvents(){
   c.querySelectorAll('[data-approveappt]').forEach(el=> el.onclick=()=> approveAppointment(el.dataset.approveappt));
   c.querySelectorAll('[data-doneappt]').forEach(el=> el.onclick=()=> setApptDone(el.dataset.doneappt, 'done', 'ทำเครื่องหมายนัดหมายนี้เป็น "เสร็จสิ้น" ใช่หรือไม่?'));
   c.querySelectorAll('[data-cancelappt]').forEach(el=> el.onclick=()=> setApptApproval(el.dataset.cancelappt, 'cancelled', 'ยกเลิกนัดหมายนี้ใช่หรือไม่?'));
+  c.querySelectorAll('[data-reopenappt]').forEach(el=> el.onclick=()=> revertApptToPending(el.dataset.reopenappt));
   c.querySelectorAll('[data-delappt]').forEach(el=> el.onclick= async ()=>{
     if(!confirm('ยืนยันการลบนัดหมายนี้?')) return;
     state.appointments = state.appointments.filter(a=>a.id!==el.dataset.delappt);
