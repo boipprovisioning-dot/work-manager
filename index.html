@@ -1854,10 +1854,11 @@ function bulkApproveEmailFields(appts){
     ].filter(l=> l!==null).join('\n');
   });
   const subject = `นัดหมายติดตั้งได้รับการอนุมัติแล้ว (${appts.length} รายการ)`;
+  const SEPARATOR = '-'.repeat(100);
   const body = [
     `นัดหมายติดตั้งต่อไปนี้ได้รับการอนุมัติแล้ว จำนวน ${appts.length} รายการ:`,
     '',
-    blocks.join('\n\n'),
+    blocks.join(`\n\n${SEPARATOR}\n\n`),
   ].join('\n');
   return { to: toList.join(','), cc: Array.from(ccSet).join(','), subject, body };
 }
