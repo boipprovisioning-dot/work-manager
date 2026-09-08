@@ -2057,26 +2057,107 @@ function renderBulkApproveEmailDialog(appts){
   };
 }
 
+let bulkApproveState = null; // { ids:[...], index:0, selections:{apptId:Set<employeeId>} }
+
 async function bulkApproveAppts(){
   const ids = Array.from(state.apptSelected).filter(id=>{
     const a = state.appointments.find(x=>x.id===id);
     return a && apptApprovalStatus(a)==='pending';
+  }).sort((idA, idB)=>{
+    const a = state.appointments.find(x=>x.id===idA), b = state.appointments.find(x=>x.id===idB);
+    return (a.date+a.time).localeCompare(b.date+b.time);
   });
   if(!ids.length){ alert('กรุณาเลือกนัดหมายที่ยัง "รออนุมัติ" อย่างน้อย 1 รายการ'); return; }
-  if(!confirm(`ยืนยันอนุมัตินัดหมายที่เลือก ${ids.length} รายการ และร่างอีเมลแจ้งผลรวมกัน?`)) return;
 
+  bulkApproveState = { ids, index: 0, selections: {} };
+  // pre-fill each appointment's selection the same way single-approve does (first on-duty
+  // person for that date) — admin only needs to adjust the ones that need changing
+  ids.forEach(id=>{
+    const appt = state.appointments.find(a=>a.id===id);
+    const onDuty = state.shifts.filter(s=> s.date===appt.date)
+      .map(s=> state.employees.find(x=>x.id===s.employeeId)).filter(Boolean);
+    bulkApproveState.selections[id] = new Set(onDuty.length? [onDuty[0].id] : []);
+  });
+  renderBulkApproveSelectDialog();
+}
+
+// walks through the selected appointments one at a time, showing the exact same
+// "แจ้งชื่อคนอยู่เวรวันนี้" picker as the single-approve flow, before finally saving
+// all of them at once and opening the combined email draft.
+function renderBulkApproveSelectDialog(){
+  const dlg = document.getElementById('dlg');
+  const { ids, index, selections } = bulkApproveState;
+  const apptId = ids[index];
+  const appt = state.appointments.find(a=>a.id===apptId);
+  if(!appt){ // record vanished mid-flow (e.g. deleted by someone else) — skip it
+    ids.splice(index,1);
+    delete selections[apptId];
+    if(!ids.length){ bulkApproveState=null; dlg.close(); return; }
+    if(bulkApproveState.index>=ids.length) bulkApproveState.index = ids.length-1;
+    renderBulkApproveSelectDialog();
+    return;
+  }
+  const onDuty = state.shifts.filter(s=> s.date===appt.date)
+    .map(s=> state.employees.find(x=>x.id===s.employeeId))
+    .filter(Boolean);
+  const selected = selections[apptId];
+  const checkboxes = onDuty.map(e=>`
+      <label style="display:flex; align-items:flex-start; justify-content:flex-start; gap:8px; padding:6px 2px; font-size:13.5px; cursor:pointer; width:100%; max-width:100%; box-sizing:border-box; text-align:left; direction:ltr;">
+        <input type="checkbox" class="bulk-approve-duty-chk" value="${e.id}" ${selected.has(e.id)?'checked':''} style="width:auto; margin-top:3px; flex:0 0 auto;">
+        <span style="flex:1 1 0%; min-width:0; max-width:100%; overflow-wrap:anywhere; word-break:break-word; text-align:left;">
+          <div style="font-weight:600;">${e.name}</div>
+          ${e.phone? `<div class="mono" style="font-size:11.5px; color:var(--slate-400);">${e.phone}</div>` : ''}
+        </span>
+      </label>`).join('');
+  const isLast = index === ids.length-1;
+
+  dlg.innerHTML = `
+    <div class="dialog-head"><h3>อนุมัตินัดหมาย (${index+1}/${ids.length})</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+    <div class="dialog-body">
+      <div style="font-size:13.5px; margin-bottom:12px; line-height:1.6;">
+        Circuit <b>${appt.customer}</b><br>วันที่ ${thaiDate(appt.date)} ${appt.time||''}
+      </div>
+      <div class="field">
+        <label>แจ้งชื่อคนอยู่เวรวันนี้เป็น (เลือกได้มากกว่า 1 คน)</label>
+        ${onDuty.length? `<div style="border:1px solid var(--line); border-radius:8px; padding:6px 8px; overflow-x:hidden; box-sizing:border-box;">${checkboxes}</div>`
+          : `<div class="empty">ไม่มีการจัดเวรสำหรับวันนี้ กรุณาตรวจสอบตารางเวร — จะอนุมัติโดยไม่ระบุชื่อคนอยู่เวรได้</div>`}
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-ghost" id="dlgCancel">ยกเลิกทั้งหมด</button>
+      ${index>0? `<button class="btn btn-ghost" id="bulkApprovePrev" type="button">← ย้อนกลับ</button>` : ''}
+      <button class="btn btn-amber" id="bulkApproveNext">${isLast? '✓ ยืนยันอนุมัติทั้งหมด' : 'ถัดไป →'}</button>
+    </div>
+  `;
+  dlg.showModal();
+  dlg.querySelector('#dlgClose').onclick = ()=> { bulkApproveState=null; dlg.close(); };
+  dlg.querySelector('#dlgCancel').onclick = ()=> { bulkApproveState=null; dlg.close(); };
+  const prevBtn = dlg.querySelector('#bulkApprovePrev');
+  if(prevBtn) prevBtn.onclick = ()=>{ bulkApproveState.index--; renderBulkApproveSelectDialog(); };
+  dlg.querySelectorAll('.bulk-approve-duty-chk').forEach(chk=>{
+    chk.onchange = ()=>{
+      if(chk.checked) selected.add(chk.value);
+      else selected.delete(chk.value);
+    };
+  });
+  dlg.querySelector('#bulkApproveNext').onclick = async ()=>{
+    if(isLast) await finishBulkApprove();
+    else { bulkApproveState.index++; renderBulkApproveSelectDialog(); }
+  };
+}
+
+async function finishBulkApprove(){
+  const { ids, selections } = bulkApproveState;
   const approvedAppts = [];
   await updateItems('appointments', ids, appt=>{
-    const onDuty = state.shifts.filter(s=> s.date===appt.date)
-      .map(s=> state.employees.find(x=>x.id===s.employeeId))
-      .filter(Boolean);
     appt.approvalStatus = 'approved';
     appt.approvedBy = session.user.name;
     appt.approvedAt = fmtDate(new Date());
-    appt.notifiedEmployeeIds = onDuty.length? [onDuty[0].id] : [];
+    appt.notifiedEmployeeIds = Array.from(selections[appt.id] || []);
     approvedAppts.push(appt);
   });
   state.apptSelected.clear();
+  bulkApproveState = null;
   renderContent();
   renderBulkApproveEmailDialog(approvedAppts);
 }
