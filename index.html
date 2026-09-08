@@ -249,6 +249,65 @@ async function saveList(key, arr){
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 
+/* ---------------- concurrency-safe write helpers ----------------
+   The whole "list" for a key (e.g. all appointments) lives as one JSON array in one
+   database row. If two people are editing at the same time and we just push the local
+   copy of `state.X` back with saveList(), whichever save lands last silently overwrites
+   whatever the OTHER person just saved — because their change was never in our copy.
+   To fix that, every add/edit/delete below re-fetches the current row from the server
+   right before merging in just the one change we're making, then writes that merged
+   result back. That way a concurrent change from someone else (made after we last loaded,
+   but before we save) doesn't get wiped out — worst case is a few-hundred-ms race window
+   right around loadList()+saveList(), instead of losing anything that happened anytime
+   since the page was opened. */
+async function saveItem(key, item){
+  const latest = await loadList(key);
+  const idx = latest.findIndex(x=>x.id===item.id);
+  if(idx>=0) latest[idx] = item; else latest.push(item);
+  await saveList(key, latest);
+  const field = keyToStateField(key);
+  if(field) state[field] = latest;
+  return latest;
+}
+async function saveItems(key, items){ // upsert several records at once (bulk add/edit)
+  const latest = await loadList(key);
+  items.forEach(item=>{
+    const idx = latest.findIndex(x=>x.id===item.id);
+    if(idx>=0) latest[idx] = item; else latest.push(item);
+  });
+  await saveList(key, latest);
+  const field = keyToStateField(key);
+  if(field) state[field] = latest;
+  return latest;
+}
+async function deleteItems(key, ids){
+  const idSet = ids instanceof Set ? ids : new Set(ids);
+  const latest = await loadList(key);
+  const filtered = latest.filter(x=>!idSet.has(x.id));
+  await saveList(key, filtered);
+  const field = keyToStateField(key);
+  if(field) state[field] = filtered;
+  return filtered;
+}
+async function deleteItem(key, id){ return deleteItems(key, [id]); }
+async function updateItems(key, ids, mutator){ // apply mutator(record) to each matching id
+  const idSet = ids instanceof Set ? ids : new Set(ids);
+  const latest = await loadList(key);
+  latest.forEach(x=>{ if(idSet.has(x.id)) mutator(x); });
+  await saveList(key, latest);
+  const field = keyToStateField(key);
+  if(field) state[field] = latest;
+  return latest;
+}
+async function appendItems(key, newItems, {clearFirst=false}={}){ // for imports: append onto the freshest server copy
+  const latest = clearFirst ? [] : await loadList(key);
+  const merged = latest.concat(newItems);
+  await saveList(key, merged);
+  const field = keyToStateField(key);
+  if(field) state[field] = merged;
+  return merged;
+}
+
 /* ---------------- realtime sync (Supabase Realtime) ---------------- */
 // ทำให้ทุกคนที่เปิดหน้านี้เห็นข้อมูลใหม่ทันทีที่มีคนอื่นบันทึกข้อมูล โดยไม่ต้อง refresh หน้าเว็บเอง
 // หมายเหตุ: ต้องเปิดใช้งาน Realtime ให้ตาราง app_data ในฝั่ง Supabase ก่อน (ดูคำแนะนำท้ายไฟล์นี้)
@@ -558,11 +617,13 @@ function bindAuthEvents(mode){
       if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ showAuthScreen('register','กรุณากรอก Email ให้ถูกต้อง'); return; }
       if(pass.length<6){ showAuthScreen('register','รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'); return; }
       if(pass!==pass2){ showAuthScreen('register','รหัสผ่านทั้งสองช่องไม่ตรงกัน'); return; }
-      if(state.users.some(u=>u.username.toLowerCase()===username)){ showAuthScreen('register','มีชื่อผู้ใช้นี้อยู่แล้ว กรุณาตั้งชื่ออื่น'); return; }
+      // check against the freshest list from the server (not the local cache) so two people
+      // registering the same username at the same moment can't both slip past this check
+      const latestUsers = await loadList('users');
+      if(latestUsers.some(u=>u.username.toLowerCase()===username)){ showAuthScreen('register','มีชื่อผู้ใช้นี้อยู่แล้ว กรุณาตั้งชื่ออื่น'); return; }
       const passwordHash = await sha256(pass);
       const user = {id:uid(), username, name, email, passwordHash, role, approved:false};
-      state.users.push(user);
-      await saveList('users', state.users);
+      await saveItem('users', user);
       showAuthScreen('login', 'ลงทะเบียนสำเร็จ! กรุณารอผู้ดูแลระบบอนุมัติบัญชีก่อนเข้าสู่ระบบ', 'success');
     };
   } else {
@@ -1310,13 +1371,14 @@ function viewSchedule(){
 }
 
 async function toggleShift(empId, date){
-  const existing = state.shifts.find(s=>s.employeeId===empId && s.date===date);
-  if(existing){
-    state.shifts = state.shifts.filter(s=>s.id!==existing.id);
-  } else {
-    state.shifts.push({id:uid(), employeeId:empId, date});
-  }
-  await saveList('shifts', state.shifts);
+  // re-check against the freshest server copy, not the local cache, so toggling a cell
+  // doesn't wipe out a shift someone else just added/removed for a different cell
+  const latest = await loadList('shifts');
+  const idx = latest.findIndex(s=>s.employeeId===empId && s.date===date);
+  if(idx>=0) latest.splice(idx,1);
+  else latest.push({id:uid(), employeeId:empId, date});
+  await saveList('shifts', latest);
+  state.shifts = latest;
   renderContent();
 }
 
@@ -1364,10 +1426,12 @@ async function handleScheduleExcelImport(file, clearFirst){
   const statusEl = document.getElementById('scheduleImportStatus');
   if(statusEl) statusEl.innerHTML = `<div class="banner">⏳ กำลังอ่านไฟล์ ${file.name} ...</div>`;
   try{
-    if(clearFirst){
-      state.shifts = [];
-      await saveList('shifts', state.shifts);
-    }
+    // pull the freshest copy from the server right before we start diffing against it —
+    // this is what stops an import from silently wiping out a shift someone else just
+    // added while we had this page open (see saveItem/appendItems notes above).
+    const latestEmployees = await loadList('employees');
+    let latestShifts = clearFirst ? [] : await loadList('shifts');
+
     const buf = await file.arrayBuffer();
     // NOTE: cellDates:true is intentionally NOT used here — SheetJS's date-cell-to-Date
     // conversion has been found to be sensitive to the runtime's local timezone (e.g. it
@@ -1378,9 +1442,10 @@ async function handleScheduleExcelImport(file, clearFirst){
 
     // map/create employees by name as we go
     const nameToEmpId = {};
-    state.employees.forEach(e=> nameToEmpId[e.name.trim().toLowerCase()] = e.id);
-    const existingKeys = new Set(state.shifts.map(s=>`${s.employeeId}|${s.date}`));
-    const newShiftsByKey = {}; // key -> {employeeId, date, notes:Set}
+    latestEmployees.forEach(e=> nameToEmpId[e.name.trim().toLowerCase()] = e.id);
+    const shiftIndexByKey = new Map(); // employeeId|date -> index into latestShifts (for existing entries)
+    latestShifts.forEach((s,i)=> shiftIndexByKey.set(`${s.employeeId}|${s.date}`, i));
+    const parsedByKey = {}; // key -> {employeeId, date, notes:Set} — every entry seen this import, new or existing
 
     let sheetsRead = 0, entriesFound = 0;
     for(const sheetName of wb.SheetNames){
@@ -1409,37 +1474,41 @@ async function handleScheduleExcelImport(file, clearFirst){
               if(!empId){
                 empId = uid();
                 nameToEmpId[nameKey] = empId;
-                state.employees.push({id:empId, name:p.name.trim(), role:'', phone:''});
+                latestEmployees.push({id:empId, name:p.name.trim(), role:'', phone:''});
               }
               const key = `${empId}|${dateIso}`;
-              if(existingKeys.has(key)) continue; // don't overwrite manually-set shifts
               const noteText = p.role + (p.sub? ` (${p.sub})` : '');
-              if(!newShiftsByKey[key]) newShiftsByKey[key] = {employeeId:empId, date:dateIso, notes:new Set()};
-              newShiftsByKey[key].notes.add(noteText);
+              if(!parsedByKey[key]) parsedByKey[key] = {employeeId:empId, date:dateIso, notes:new Set()};
+              parsedByKey[key].notes.add(noteText);
             }
           }
         }
       }
     }
 
-    const newShifts = Object.values(newShiftsByKey).map(x=>({
-      id:uid(), employeeId:x.employeeId, date:x.date, note: Array.from(x.notes).join(' / ')
-    }));
-    state.shifts.push(...newShifts);
+    // key = employeeId + date. If a shift already exists for that person/date, overwrite
+    // its note with what was just parsed (instead of skipping it); otherwise add it as new.
+    let addedCount = 0, updatedCount = 0;
+    Object.entries(parsedByKey).forEach(([key, x])=>{
+      const note = Array.from(x.notes).join(' / ');
+      if(shiftIndexByKey.has(key)){
+        latestShifts[shiftIndexByKey.get(key)].note = note;
+        updatedCount++;
+      } else {
+        latestShifts.push({id:uid(), employeeId:x.employeeId, date:x.date, note});
+        addedCount++;
+      }
+    });
 
     // --- diagnostics: open the browser console (F12) to inspect this ---
     console.log('[Schedule Import] Sheets found:', wb.SheetNames);
-    console.log('[Schedule Import] Total sheets read:', sheetsRead, '| total entries parsed:', entriesFound, '| new shifts added:', newShifts.length);
-    const debugRange = newShifts
-      .filter(s=> s.date>='2026-08-25' && s.date<='2026-09-10')
-      .map(s=> ({ date:s.date, employee: (state.employees.find(e=>e.id===s.employeeId)||{}).name, note:s.note }))
-      .sort((a,b)=> a.date.localeCompare(b.date));
-    console.log('[Schedule Import] Aug25–Sep10 detail (check this against your Excel file):');
-    console.table(debugRange);
-    await saveList('employees', state.employees);
-    await saveList('shifts', state.shifts);
+    console.log('[Schedule Import] Total sheets read:', sheetsRead, '| total entries parsed:', entriesFound, '| added:', addedCount, '| updated:', updatedCount);
+    await saveList('employees', latestEmployees);
+    await saveList('shifts', latestShifts);
+    state.employees = latestEmployees;
+    state.shifts = latestShifts;
 
-    if(statusEl) statusEl.innerHTML = `<div class="banner" style="background:var(--green-dim); color:#265c39;">✅ นำเข้าสำเร็จ${clearFirst? ' (ล้างข้อมูลเดิมก่อนนำเข้าแล้ว)':''}: อ่าน ${sheetsRead} ชีต พบ ${entriesFound} รายการ เพิ่มวันอยู่เวรใหม่ ${newShifts.length} รายการ${clearFirst? '' : ' (ข้ามรายการที่มีอยู่แล้ว)'}</div>`;
+    if(statusEl) statusEl.innerHTML = `<div class="banner" style="background:var(--green-dim); color:#265c39;">✅ นำเข้าสำเร็จ${clearFirst? ' (ล้างข้อมูลเดิมก่อนนำเข้าแล้ว)':''}: อ่าน ${sheetsRead} ชีต พบ ${entriesFound} รายการ — เพิ่มใหม่ ${addedCount} รายการ, อัปเดตทับ ${updatedCount} รายการ (คนเดียวกัน+วันเดียวกัน)</div>`;
     renderContent();
   }catch(err){
     console.error(err);
@@ -1601,9 +1670,10 @@ function openApptDialog(existing){
       note: dlg.querySelector('#f_note').value.trim(),
     };
     data.time = data.timeStart===data.timeEnd ? data.timeStart : `${data.timeStart}-${data.timeEnd}`;
-    if(existing){ Object.assign(existing, data); }
-    else { state.appointments.push({id:uid(), approvalStatus:'pending', doneStatus:'not_done', submittedByEmail: session.user? session.user.email||'' : '', ...data}); }
-    await saveList('appointments', state.appointments);
+    const record = existing
+      ? Object.assign({}, existing, data)
+      : {id:uid(), approvalStatus:'pending', doneStatus:'not_done', submittedByEmail: session.user? session.user.email||'' : '', ...data};
+    await saveItem('appointments', record);
     dlg.close(); renderContent();
   };
 }
@@ -1681,7 +1751,15 @@ async function handleApptExcelImport(file){
       throw new Error('ไม่พบหัวตารางที่ตรงกับรูปแบบไฟล์ "ฟอร์มนัดหมายติดตั้ง" (Circuit, วันที่, เวลา, ช่างผู้รับผิดชอบ, เบอร์โทรช่าง, หมายเหตุ) กรุณาตรวจสอบแถวแรกของไฟล์');
     }
 
-    let imported = 0, skipped = 0;
+    // key = Circuit + วันที่ (both must match to count as the same appointment).
+    // If Circuit matches but the date differs, it's treated as a separate appointment.
+    const apptKey = a => `${(a.customer||'').trim().toLowerCase()}|${a.date}`;
+
+    // work against the freshest server copy so this import can't clobber an appointment
+    // someone else added/edited while this file was being read
+    const working = await loadList('appointments');
+
+    let imported = 0, updated = 0, skipped = 0;
     for(let r=1; r<rows.length; r++){
       const row = rows[r];
       if(!row || row.every(c=>c===''||c===undefined||c===null)){ continue; }
@@ -1694,24 +1772,26 @@ async function handleApptExcelImport(file){
       if(!rec.customer){ skipped++; continue; }
       if(!rec.date) rec.date = fmtDate(new Date());
       const {timeStart, timeEnd, time} = parseApptTimeRange(rec.time);
-      state.appointments.push({
-        id: uid(),
-        date: rec.date,
-        time,
-        timeStart, timeEnd,
-        customer: rec.customer,
-        technicianName: rec.technicianName,
-        technicianPhone: rec.technicianPhone,
-        note: rec.note,
-        approvalStatus: 'pending',
-        doneStatus: 'not_done',
-        submittedByName: session.user? session.user.name : '',
-        submittedByEmail: session.user? session.user.email||'' : '',
-      });
-      imported++;
+      const data = { date: rec.date, time, timeStart, timeEnd, customer: rec.customer, technicianName: rec.technicianName, technicianPhone: rec.technicianPhone, note: rec.note };
+      const existing = working.find(a=> apptKey(a)===apptKey(data));
+      if(existing){
+        Object.assign(existing, data);
+        updated++;
+      } else {
+        working.push({
+          id: uid(),
+          approvalStatus: 'pending',
+          doneStatus: 'not_done',
+          submittedByName: session.user? session.user.name : '',
+          submittedByEmail: session.user? session.user.email||'' : '',
+          ...data,
+        });
+        imported++;
+      }
     }
-    await saveList('appointments', state.appointments);
-    if(statusEl) statusEl.innerHTML = `<div class="banner" style="background:var(--green-dim); color:#265c39;">✅ นำเข้าสำเร็จ ${imported} รายการ${skipped? ` (ข้ามแถวว่าง/ไม่มี Circuit ${skipped} แถว)`:''}</div>`;
+    await saveList('appointments', working);
+    state.appointments = working;
+    if(statusEl) statusEl.innerHTML = `<div class="banner" style="background:var(--green-dim); color:#265c39;">✅ นำเข้าสำเร็จ: เพิ่มใหม่ ${imported} รายการ, อัปเดตทับ ${updated} รายการ (Circuit+วันที่ตรงกัน)${skipped? ` (ข้ามแถวว่าง/ไม่มี Circuit ${skipped} แถว)`:''}</div>`;
     renderContent();
   }catch(err){
     console.error(err);
@@ -1861,11 +1941,12 @@ function renderApproveDialogEmail(){
 async function doApproveAppointment(apptId, chosenEmpIds){
   const appt = state.appointments.find(a=>a.id===apptId);
   if(!appt) return;
-  appt.approvalStatus = 'approved';
-  appt.approvedBy = session.user.name;
-  appt.approvedAt = fmtDate(new Date());
-  appt.notifiedEmployeeIds = chosenEmpIds || [];
-  await saveList('appointments', state.appointments);
+  await updateItems('appointments', [apptId], a=>{
+    a.approvalStatus = 'approved';
+    a.approvedBy = session.user.name;
+    a.approvedAt = fmtDate(new Date());
+    a.notifiedEmployeeIds = chosenEmpIds || [];
+  });
   // update the table behind the dialog; the dialog itself is a separate element
   // so this re-render never wipes out what we're about to show in it.
   renderContent();
@@ -1955,9 +2036,7 @@ async function bulkApproveAppts(){
   if(!confirm(`ยืนยันอนุมัตินัดหมายที่เลือก ${ids.length} รายการ และร่างอีเมลแจ้งผลรวมกัน?`)) return;
 
   const approvedAppts = [];
-  for(const id of ids){
-    const appt = state.appointments.find(a=>a.id===id);
-    if(!appt) continue;
+  await updateItems('appointments', ids, appt=>{
     const onDuty = state.shifts.filter(s=> s.date===appt.date)
       .map(s=> state.employees.find(x=>x.id===s.employeeId))
       .filter(Boolean);
@@ -1966,8 +2045,7 @@ async function bulkApproveAppts(){
     appt.approvedAt = fmtDate(new Date());
     appt.notifiedEmployeeIds = onDuty.length? [onDuty[0].id] : [];
     approvedAppts.push(appt);
-  }
-  await saveList('appointments', state.appointments);
+  });
   state.apptSelected.clear();
   renderContent();
   renderBulkApproveEmailDialog(approvedAppts);
@@ -1977,8 +2055,7 @@ async function setApptApproval(apptId, approvalStatus, confirmMsg){
   const appt = state.appointments.find(a=>a.id===apptId);
   if(!appt) return;
   if(confirmMsg && !confirm(confirmMsg)) return;
-  appt.approvalStatus = approvalStatus;
-  await saveList('appointments', state.appointments);
+  await updateItems('appointments', [apptId], a=>{ a.approvalStatus = approvalStatus; });
   renderContent();
 }
 
@@ -1986,12 +2063,13 @@ async function revertApptToPending(apptId){
   const appt = state.appointments.find(a=>a.id===apptId);
   if(!appt) return;
   if(!confirm(`ย้อนสถานะนัดหมาย Circuit "${appt.customer}" กลับไปเป็น "รออนุมัติ" ใช่หรือไม่? (ข้อมูลผู้อนุมัติเดิมจะถูกล้าง)`)) return;
-  appt.approvalStatus = 'pending';
-  delete appt.approvedBy;
-  delete appt.approvedAt;
-  delete appt.notifiedEmployeeIds;
-  appt.doneStatus = 'not_done';
-  await saveList('appointments', state.appointments);
+  await updateItems('appointments', [apptId], a=>{
+    a.approvalStatus = 'pending';
+    delete a.approvedBy;
+    delete a.approvedAt;
+    delete a.notifiedEmployeeIds;
+    a.doneStatus = 'not_done';
+  });
   renderContent();
 }
 
@@ -1999,8 +2077,7 @@ async function setApptDone(apptId, doneStatus, confirmMsg){
   const appt = state.appointments.find(a=>a.id===apptId);
   if(!appt) return;
   if(confirmMsg && !confirm(confirmMsg)) return;
-  appt.doneStatus = doneStatus;
-  await saveList('appointments', state.appointments);
+  await updateItems('appointments', [apptId], a=>{ a.doneStatus = doneStatus; });
   renderContent();
 }
 
@@ -2681,9 +2758,8 @@ function openPlanworkDialog(existing){
       remark: dlg.querySelector('#f_remark').value.trim(),
       remarkMail: dlg.querySelector('#f_remarkmail').value.trim(),
     };
-    if(existing){ Object.assign(existing, data); }
-    else { state.planworks.push({id:uid(), ...data}); }
-    await saveList('planworks', state.planworks);
+    const record = existing ? Object.assign({}, existing, data) : {id:uid(), ...data};
+    await saveItem('planworks', record);
     dlg.close(); renderContent();
   };
 }
@@ -2697,12 +2773,11 @@ async function fixLegacyAssignBy(){
   if(!confirm(`พบ ${affected.length} รายการที่ Assingment By เป็นชื่อรวมหลายคน (เช่น "Mongkol, Panya, Seksan")\n\nจะแก้ให้เหลือเฉพาะชื่อคนอยู่เวร MPLS ของวันนั้นแทน ต้องการดำเนินการหรือไม่?`)) return;
 
   let changed = 0, skipped = 0;
-  affected.forEach(p=>{
+  await updateItems('planworks', affected.map(p=>p.id), p=>{
     const mplsNames = getOnDutyNamesForDate(p.date, 'MPLS');
     if(mplsNames.length){ p.assignBy = mplsNames[0]; changed++; }
     else skipped++; // no MPLS on-duty info for that date — leave the record untouched
   });
-  await saveList('planworks', state.planworks);
   alert(`แก้ไขแล้ว ${changed} รายการ${skipped? ` (ข้าม ${skipped} รายการที่หาคนอยู่เวร MPLS ของวันนั้นไม่เจอ)`:''}`);
   renderContent();
 }
@@ -2763,7 +2838,17 @@ async function handleExcelImport(file){
     });
     if(Object.keys(colMap).length===0){ throw new Error('ไม่พบคอลัมน์ที่ตรงกับหัวตารางที่รองรับ กรุณาตรวจสอบแถวแรกของไฟล์'); }
 
-    let imported = 0, skipped = 0;
+    // key = Planwork_No + วันที่ (both must match to count as the same Planwork).
+    // If Planwork_No matches but the date differs, it's treated as a separate record.
+    // Empty Planwork_No can never match anything (would otherwise falsely group unrelated
+    // blank-planNo rows that happen to share a date) — those are always added as new.
+    const pwKey = p => `${(p.planNo||'').trim().toLowerCase()}|${p.date}`;
+
+    // work against the freshest server copy so this import can't clobber a Planwork
+    // someone else added/edited while the file was being read
+    const working = await loadList('planworks');
+
+    let imported = 0, updated = 0, skipped = 0;
     for(let r=1; r<rows.length; r++){
       const row = rows[r];
       if(!row || row.every(c=>c===''||c===undefined||c===null)){ continue; }
@@ -2785,11 +2870,18 @@ async function handleExcelImport(file){
         const names = getOnDutyNamesForDate(rec.date, 'MPLS');
         if(names.length) rec.assignBy = names[0];
       }
-      state.planworks.push({id:uid(), ...rec});
-      imported++;
+      const existing = rec.planNo.trim() ? working.find(p=> p.planNo && p.planNo.trim() && pwKey(p)===pwKey(rec)) : null;
+      if(existing){
+        Object.assign(existing, rec);
+        updated++;
+      } else {
+        working.push({id:uid(), ...rec});
+        imported++;
+      }
     }
-    await saveList('planworks', state.planworks);
-    if(statusEl) statusEl.innerHTML = `<div class="banner">✅ นำเข้าสำเร็จ ${imported} รายการ${skipped? ` (ข้ามแถวว่าง ${skipped} แถว)`:''}</div>`;
+    await saveList('planworks', working);
+    state.planworks = working;
+    if(statusEl) statusEl.innerHTML = `<div class="banner">✅ นำเข้าสำเร็จ: เพิ่มใหม่ ${imported} รายการ, อัปเดตทับ ${updated} รายการ (Planwork_No+วันที่ตรงกัน)${skipped? ` (ข้ามแถวว่าง ${skipped} แถว)`:''}</div>`;
     renderContent();
   }catch(err){
     console.error(err);
@@ -2896,8 +2988,7 @@ function openPwBulkEditDialog(ids){
 
     if(Object.keys(changes).length===0){ alert('กรุณาติ๊กอย่างน้อย 1 ช่องที่ต้องการแก้ไข'); return; }
 
-    state.planworks.forEach(p=>{ if(ids.includes(p.id)) Object.assign(p, changes); });
-    await saveList('planworks', state.planworks);
+    await updateItems('planworks', ids, p=> Object.assign(p, changes));
     dlg.close();
     renderContent();
   };
@@ -3023,12 +3114,11 @@ function openOTDialog(){
     const employeeId = dlg.querySelector('#f_emp').value;
     const hours = Number(dlg.querySelector('#f_hours').value);
     if(!employeeId || !hours){ alert('กรุณาเลือกพนักงานและกรอกจำนวนชั่วโมง'); return; }
-    state.otEntries.push({
+    await saveItem('ot-entries', {
       id:uid(), employeeId, date: dlg.querySelector('#f_date').value,
       hours, multiplier: Number(dlg.querySelector('#f_multiplier').value),
       reason: dlg.querySelector('#f_reason').value.trim()
     });
-    await saveList('ot-entries', state.otEntries);
     dlg.close(); renderContent();
   };
 }
@@ -3156,8 +3246,7 @@ function openLeaveDialog(existing){
   if(existing){
     dlg.querySelector('#deleteLeaveInline').onclick = async ()=>{
       if(!confirm('ลบวันลานี้ใช่หรือไม่?')) return;
-      state.leaves = state.leaves.filter(l=>l.id!==existing.id);
-      await saveList('leaves', state.leaves);
+      await deleteItem('leaves', existing.id);
       dlg.close(); renderContent();
     };
   }
@@ -3174,9 +3263,8 @@ function openLeaveDialog(existing){
       employeeId, type: dlg.querySelector('#f_type').value,
       start, end, timeStart, timeEnd, note: dlg.querySelector('#f_note').value.trim(),
     };
-    if(existing){ Object.assign(existing, data); }
-    else { state.leaves.push({id:uid(), ...data, status:'approved'}); }
-    await saveList('leaves', state.leaves);
+    const record = existing ? Object.assign({}, existing, data) : {id:uid(), ...data, status:'approved'};
+    await saveItem('leaves', record);
     dlg.close(); renderContent();
   };
 }
@@ -3269,17 +3357,21 @@ function openUserDialog(existing){
     if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ alert('กรุณากรอก Email ให้ถูกต้อง'); return; }
     if(!existing && !pass){ alert('กรุณาตั้งรหัสผ่าน'); return; }
     if(pass && pass.length<6){ alert('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'); return; }
-    if(!existing && state.users.some(u=>u.username.toLowerCase()===username)){ alert('มีชื่อผู้ใช้นี้อยู่แล้ว'); return; }
+    if(!existing){
+      const latestUsers = await loadList('users');
+      if(latestUsers.some(u=>u.username.toLowerCase()===username)){ alert('มีชื่อผู้ใช้นี้อยู่แล้ว'); return; }
+    }
 
+    let record;
     if(existing){
-      existing.name = name; existing.role = role; existing.email = email;
-      if(pass) existing.passwordHash = await sha256(pass);
-      if(session.user.id===existing.id) session.user = existing;
+      record = Object.assign({}, existing, { name, role, email });
+      if(pass) record.passwordHash = await sha256(pass);
+      if(session.user.id===existing.id) session.user = record;
     } else {
       const passwordHash = await sha256(pass);
-      state.users.push({id:uid(), username, name, email, role, passwordHash, approved:true});
+      record = {id:uid(), username, name, email, role, passwordHash, approved:true};
     }
-    await saveList('users', state.users);
+    await saveItem('users', record);
     dlg.close(); renderNav(); renderContent();
   };
 }
@@ -3334,9 +3426,8 @@ function openEmpDialog(existing){
     const name = dlg.querySelector('#f_name').value.trim();
     if(!name){ alert('กรุณากรอกชื่อ'); return; }
     const data = { name, phone: dlg.querySelector('#f_phone').value.trim(), email: dlg.querySelector('#f_email').value.trim() };
-    if(existing){ Object.assign(existing, data); }
-    else { state.employees.push({id:uid(), ...data}); }
-    await saveList('employees', state.employees);
+    const record = existing ? Object.assign({}, existing, data) : {id:uid(), ...data};
+    await saveItem('employees', record);
     dlg.close(); renderContent();
   };
 }
@@ -3401,8 +3492,7 @@ function bindContentEvents(){
   c.querySelectorAll('[data-reopenappt]').forEach(el=> el.onclick=()=> revertApptToPending(el.dataset.reopenappt));
   c.querySelectorAll('[data-delappt]').forEach(el=> el.onclick= async ()=>{
     if(!confirm('ยืนยันการลบนัดหมายนี้?')) return;
-    state.appointments = state.appointments.filter(a=>a.id!==el.dataset.delappt);
-    await saveList('appointments', state.appointments); renderContent();
+    await deleteItem('appointments', el.dataset.delappt); renderContent();
   });
   c.querySelectorAll('.pill-tab[data-f]').forEach(el=> el.onclick=()=>{ state.apptFilter = el.dataset.f; renderContent(); });
 
@@ -3454,14 +3544,14 @@ function bindContentEvents(){
   c.querySelectorAll('[data-editpw]').forEach(el=> el.onclick=()=> openPlanworkDialog(state.planworks.find(p=>p.id===el.dataset.editpw)));
   c.querySelectorAll('[data-delpw]').forEach(el=> el.onclick= async ()=>{
     if(!confirm('ยืนยันการลบ Planwork นี้?')) return;
-    state.planworks = state.planworks.filter(p=>p.id!==el.dataset.delpw);
-    await saveList('planworks', state.planworks); renderContent();
+    await deleteItem('planworks', el.dataset.delpw); renderContent();
   });
   c.querySelectorAll('[data-refstatus]').forEach(el=> el.onchange = async ()=>{
     const p = state.planworks.find(x=>x.id===el.dataset.refstatus);
     if(!p) return;
-    p.reference = el.value;
-    await saveList('planworks', state.planworks); renderContent();
+    const refValue = el.value;
+    await updateItems('planworks', [el.dataset.refstatus], x=>{ x.reference = refValue; });
+    renderContent();
   });
   const pwSearch = c.querySelector('#pwSearch');
   if(pwSearch){
@@ -3492,28 +3582,28 @@ function bindContentEvents(){
   };
   const pwBulkSetNotMigrate = c.querySelector('#pwBulkSetNotMigrate');
   if(pwBulkSetNotMigrate) pwBulkSetNotMigrate.onclick = async ()=>{
-    state.planworks.forEach(p=>{ if(state.planworkSelected.has(p.id)) p.reference = 'Not migrate'; });
-    await saveList('planworks', state.planworks); renderContent();
+    await updateItems('planworks', state.planworkSelected, p=>{ p.reference = 'Not migrate'; });
+    renderContent();
   };
   const pwBulkSetCompleted = c.querySelector('#pwBulkSetCompleted');
   if(pwBulkSetCompleted) pwBulkSetCompleted.onclick = async ()=>{
-    state.planworks.forEach(p=>{ if(state.planworkSelected.has(p.id)) p.reference = 'Completed'; });
-    await saveList('planworks', state.planworks); renderContent();
+    await updateItems('planworks', state.planworkSelected, p=>{ p.reference = 'Completed'; });
+    renderContent();
   };
   const pwBulkSetCancel = c.querySelector('#pwBulkSetCancel');
   if(pwBulkSetCancel) pwBulkSetCancel.onclick = async ()=>{
     if(!confirm(`ยืนยันการตั้งค่า Referance เป็น "Cancel" สำหรับ Planwork ที่เลือก ${state.planworkSelected.size} รายการ?`)) return;
-    state.planworks.forEach(p=>{ if(state.planworkSelected.has(p.id)) p.reference = 'Cancel'; });
-    await saveList('planworks', state.planworks); renderContent();
+    await updateItems('planworks', state.planworkSelected, p=>{ p.reference = 'Cancel'; });
+    renderContent();
   };
   const pwBulkEdit = c.querySelector('#pwBulkEdit');
   if(pwBulkEdit) pwBulkEdit.onclick = ()=> openPwBulkEditDialog([...state.planworkSelected]);
   const pwBulkDelete = c.querySelector('#pwBulkDelete');
   if(pwBulkDelete) pwBulkDelete.onclick = async ()=>{
     if(!confirm(`ยืนยันการลบ Planwork ที่เลือก ${state.planworkSelected.size} รายการ?`)) return;
-    state.planworks = state.planworks.filter(p=>!state.planworkSelected.has(p.id));
+    await deleteItems('planworks', state.planworkSelected);
     state.planworkSelected.clear();
-    await saveList('planworks', state.planworks); renderContent();
+    renderContent();
   };
   const pwBulkClearSel = c.querySelector('#pwBulkClearSel');
   if(pwBulkClearSel) pwBulkClearSel.onclick = ()=>{ state.planworkSelected.clear(); renderContent(); };
@@ -3545,8 +3635,7 @@ function bindContentEvents(){
   const nom = c.querySelector('#nextOTMonth'); if(nom) nom.onclick=()=>{ let m=state.otMonth+1,y=state.otYear; if(m>11){m=0;y++;} state.otMonth=m; state.otYear=y; renderContent(); };
   c.querySelectorAll('[data-delot]').forEach(el=> el.onclick= async ()=>{
     if(!confirm('ยืนยันการลบรายการนี้?')) return;
-    state.otEntries = state.otEntries.filter(o=>o.id!==el.dataset.delot);
-    await saveList('ot-entries', state.otEntries); renderContent();
+    await deleteItem('ot-entries', el.dataset.delot); renderContent();
   });
 
   // leave
@@ -3556,8 +3645,7 @@ function bindContentEvents(){
   c.querySelectorAll('[data-editleave]').forEach(el=> el.onclick=()=> openLeaveDialog(state.leaves.find(l=>l.id===el.dataset.editleave)));
   c.querySelectorAll('[data-delleave]').forEach(el=> el.onclick= async ()=>{
     if(!confirm('ยืนยันการลบวันลานี้?')) return;
-    state.leaves = state.leaves.filter(l=>l.id!==el.dataset.delleave);
-    await saveList('leaves', state.leaves); renderContent();
+    await deleteItem('leaves', el.dataset.delleave); renderContent();
   });
 
   // users
@@ -3565,12 +3653,11 @@ function bindContentEvents(){
   c.querySelectorAll('[data-edituser]').forEach(el=> el.onclick=()=> openUserDialog(state.users.find(x=>x.id===el.dataset.edituser)));
   c.querySelectorAll('[data-approveuser]').forEach(el=> el.onclick= async ()=>{
     const u = state.users.find(x=>x.id===el.dataset.approveuser);
-    if(u){ u.approved = true; await saveList('users', state.users); renderContent(); }
+    if(u){ await updateItems('users', [el.dataset.approveuser], x=>{ x.approved = true; }); renderContent(); }
   });
   c.querySelectorAll('[data-deluser]').forEach(el=> el.onclick= async ()=>{
     if(!confirm('ลบผู้ใช้งานนี้?')) return;
-    state.users = state.users.filter(x=>x.id!==el.dataset.deluser);
-    await saveList('users', state.users); renderContent();
+    await deleteItem('users', el.dataset.deluser); renderContent();
   });
 
   // team
@@ -3578,8 +3665,7 @@ function bindContentEvents(){
   c.querySelectorAll('[data-editemp]').forEach(el=> el.onclick=()=> openEmpDialog(state.employees.find(x=>x.id===el.dataset.editemp)));
   c.querySelectorAll('[data-delemp]').forEach(el=> el.onclick= async ()=>{
     if(!confirm('ลบพนักงานคนนี้? ข้อมูลเวร/นัดหมาย/OT/ลาที่ผูกกับคนนี้จะยังอยู่แต่จะแสดงชื่อไม่ได้')) return;
-    state.employees = state.employees.filter(x=>x.id!==el.dataset.delemp);
-    await saveList('employees', state.employees); renderContent();
+    await deleteItem('employees', el.dataset.delemp); renderContent();
   });
 }
 
