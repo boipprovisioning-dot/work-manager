@@ -363,6 +363,8 @@ let state = {
   apptSearch: '',
   apptDate: '',
   apptDoneFilter: 'all',
+  apptPage: 1,
+  apptPageSize: 10,
   planworkSearch: '',
   planworkDateFrom: '',
   planworkDateTo: '',
@@ -1532,10 +1534,21 @@ function viewAppt(){
   if(state.apptDate){ list = list.filter(a=> (a.date||'')===state.apptDate); }
   if(state.apptDoneFilter!=='all'){ list = list.filter(a=> apptDoneStatus(a)===state.apptDoneFilter); }
   const isAdmin = session.user && session.user.role==='admin';
-  const pendingInList = list.filter(a=> apptApprovalStatus(a)==='pending');
-  const selectedPendingInList = pendingInList.filter(a=> state.apptSelected.has(a.id)).length;
-  const selectedCount = state.apptSelected.size;
   const hasActiveFilters = q || state.apptDate || state.apptDoneFilter!=='all';
+
+  const total = list.length;
+  const pageSize = state.apptPageSize;
+  const totalPages = Math.max(1, Math.ceil(total/pageSize));
+  if(state.apptPage>totalPages) state.apptPage = totalPages;
+  if(state.apptPage<1) state.apptPage = 1;
+  const pageStart = total? (state.apptPage-1)*pageSize : 0;
+  const pageEnd = Math.min(total, pageStart+pageSize);
+  const pageList = list.slice(pageStart, pageEnd);
+
+  const pendingOnPage = pageList.filter(a=> apptApprovalStatus(a)==='pending');
+  const selectedPendingOnPage = pendingOnPage.filter(a=> state.apptSelected.has(a.id)).length;
+  const selectedCount = state.apptSelected.size;
+  const pagerItems = pwBuildPager(state.apptPage, totalPages);
 
   return `
     <div class="topbar">
@@ -1581,11 +1594,11 @@ function viewAppt(){
       <button class="btn btn-ghost btn-sm" id="apptBulkClearSel" type="button">ล้างการเลือก</button>
     </div>` : ''}
     <div class="card">
-      ${list.length? `
+      ${pageList.length? `
       <table>
-        <thead><tr>${isAdmin? `<th style="width:36px;"><label style="display:flex; align-items:center; justify-content:center; padding:6px; cursor:pointer;"><input type="checkbox" id="apptSelectAllChk" style="width:18px; height:18px; cursor:pointer;" ${pendingInList.length && selectedPendingInList===pendingInList.length? 'checked':''}></label></th>`:''}<th>วันที่/เวลา</th><th>Circuit</th><th>ช่างผู้รับผิดชอบ</th><th>แจ้งโดย</th><th>สถานะอนุมัติ</th><th>สถานะงาน</th><th></th></tr></thead>
+        <thead><tr>${isAdmin? `<th style="width:36px;"><label style="display:flex; align-items:center; justify-content:center; padding:6px; cursor:pointer;"><input type="checkbox" id="apptSelectAllChk" style="width:18px; height:18px; cursor:pointer;" ${pendingOnPage.length && selectedPendingOnPage===pendingOnPage.length? 'checked':''}></label></th>`:''}<th>วันที่/เวลา</th><th>Circuit</th><th>ช่างผู้รับผิดชอบ</th><th>แจ้งโดย</th><th>สถานะอนุมัติ</th><th>สถานะงาน</th><th></th></tr></thead>
         <tbody>
-          ${list.map(a=>{
+          ${pageList.map(a=>{
             const appr = apptApprovalStatus(a);
             const done = apptDoneStatus(a);
             return `
@@ -1608,7 +1621,24 @@ function viewAppt(){
             </tr>`;
           }).join('')}
         </tbody>
-      </table>` : `<div class="empty">ไม่มีนัดหมาย${hasActiveFilters? 'ที่ตรงกับการค้นหา/ตัวกรอง':'ในหมวดนี้'}</div>`}
+      </table>
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-top:14px; padding-top:14px; border-top:1px solid var(--line);">
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div style="font-size:12.5px; color:var(--slate-400);">Showing ${total? pageStart+1:0} to ${pageEnd} of ${total} entries</div>
+          <div style="display:flex; align-items:center; gap:6px; font-size:12.5px;">
+            Show <select id="apptPageSize" style="width:auto; padding:4px 8px;">${PW_PAGE_SIZES.map(s=>`<option value="${s}" ${state.apptPageSize===s?'selected':''}>${s}</option>`).join('')}</select> entries
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" id="apptPagePrev" type="button" ${state.apptPage<=1?'disabled':''}>Previous</button>
+          ${pagerItems.map(it=> it.ellipsis
+            ? `<span style="padding:0 6px; color:var(--slate-400);">...</span>`
+            : `<button class="btn ${it.page===state.apptPage?'btn-amber':'btn-ghost'} btn-sm" data-apptpage="${it.page}" type="button">${it.page}</button>`
+          ).join('')}
+          <button class="btn btn-ghost btn-sm" id="apptPageNext" type="button" ${state.apptPage>=totalPages?'disabled':''}>Next</button>
+        </div>
+      </div>
+      ` : `<div class="empty">ไม่มีนัดหมาย${hasActiveFilters? 'ที่ตรงกับการค้นหา/ตัวกรอง':'ในหมวดนี้'}</div>`}
     </div>
   `;
 }
@@ -3494,21 +3524,30 @@ function bindContentEvents(){
     if(!confirm('ยืนยันการลบนัดหมายนี้?')) return;
     await deleteItem('appointments', el.dataset.delappt); renderContent();
   });
-  c.querySelectorAll('.pill-tab[data-f]').forEach(el=> el.onclick=()=>{ state.apptFilter = el.dataset.f; renderContent(); });
+  c.querySelectorAll('.pill-tab[data-f]').forEach(el=> el.onclick=()=>{ state.apptFilter = el.dataset.f; state.apptPage=1; renderContent(); });
 
   // appointments: header-based filters (search / date range / สถานะงาน)
   const apptSearch = c.querySelector('#apptSearch');
   if(apptSearch){
     apptSearch.oninput = ()=>{ state.apptSearch = apptSearch.value; };
-    apptSearch.onkeydown = (e)=>{ if(e.key==='Enter'){ renderContent(); } };
-    apptSearch.onblur = ()=>{ renderContent(); };
+    apptSearch.onkeydown = (e)=>{ if(e.key==='Enter'){ state.apptPage=1; renderContent(); } };
+    apptSearch.onblur = ()=>{ state.apptPage=1; renderContent(); };
   }
   const apptDate = c.querySelector('#apptDate');
-  if(apptDate) apptDate.onchange = ()=>{ state.apptDate = apptDate.value; renderContent(); };
+  if(apptDate) apptDate.onchange = ()=>{ state.apptDate = apptDate.value; state.apptPage=1; renderContent(); };
   const apptDoneFilter = c.querySelector('#apptDoneFilter');
-  if(apptDoneFilter) apptDoneFilter.onchange = ()=>{ state.apptDoneFilter = apptDoneFilter.value; renderContent(); };
+  if(apptDoneFilter) apptDoneFilter.onchange = ()=>{ state.apptDoneFilter = apptDoneFilter.value; state.apptPage=1; renderContent(); };
   const apptFilterClear = c.querySelector('#apptFilterClear');
-  if(apptFilterClear) apptFilterClear.onclick = ()=>{ state.apptSearch=''; state.apptDate=''; state.apptDoneFilter='all'; renderContent(); };
+  if(apptFilterClear) apptFilterClear.onclick = ()=>{ state.apptSearch=''; state.apptDate=''; state.apptDoneFilter='all'; state.apptPage=1; renderContent(); };
+
+  // appointments: pagination
+  const apptPageSize = c.querySelector('#apptPageSize');
+  if(apptPageSize) apptPageSize.onchange = ()=>{ state.apptPageSize = Number(apptPageSize.value); state.apptPage=1; renderContent(); };
+  const apptPagePrev = c.querySelector('#apptPagePrev');
+  if(apptPagePrev) apptPagePrev.onclick = ()=>{ state.apptPage = Math.max(1, state.apptPage-1); renderContent(); };
+  const apptPageNext = c.querySelector('#apptPageNext');
+  if(apptPageNext) apptPageNext.onclick = ()=>{ state.apptPage = state.apptPage+1; renderContent(); };
+  c.querySelectorAll('[data-apptpage]').forEach(el=> el.onclick = ()=>{ state.apptPage = Number(el.dataset.apptpage); renderContent(); });
 
   // appointments: bulk-select + approve & draft combined email
   c.querySelectorAll('.appt-row-chk').forEach(el=> el.onchange = ()=>{
