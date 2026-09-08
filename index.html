@@ -319,6 +319,7 @@ function keyToStateField(key){
     'ot-entries':'otEntries',
     'leaves':'leaves',
     'planworks':'planworks',
+    'artifacts':'artifacts',
     'users':'users',
   }[key];
 }
@@ -350,6 +351,7 @@ let state = {
   otEntries: [],     // {id, employeeId, date, hours, reason}
   leaves: [],        // {id, employeeId, type, start, end, note, status}
   planworks: [],     // {id, date, dnType, dnTime, planNo, detail, node, reference, assignBy, workType, vendor, remark, remarkMail, completed, cancelled}
+  artifacts: [],     // {id, reqDate, circuit, requestor, urgentReason, owner, phone, email, dueDate, statusOfcl, statusArtifact, comment}
   users: [],         // {id, username, passwordHash, name, role: 'admin'|'staff'}
   route: 'overview',
   weekStart: startOfWeek(new Date()),
@@ -371,6 +373,13 @@ let state = {
   planworkPage: 1,
   planworkPageSize: 10,
   planworkSelected: new Set(),
+  artifactSearch: '',
+  artifactDateFrom: '',
+  artifactDateTo: '',
+  artifactStatusFilter: 'all', // 'all' | 'pending' | 'completed'
+  artifactPage: 1,
+  artifactPageSize: 10,
+  artifactSelected: new Set(),
   apptSelected: new Set(),
   reportPeriod: 'month',
   reportRef: fmtDate(new Date()),
@@ -451,6 +460,7 @@ const ICONS = {
   team:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6"/><circle cx="17" cy="9" r="2.4"/><path d="M17.5 14.2c2.5.5 4.5 2.4 4.5 5.3"/></svg>',
   calendar:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><circle cx="8" cy="14" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="14" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>',
   planwork:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 3v3h8V3"/><path d="M8 11h8M8 15h8M8 19h5"/></svg>',
+  artifact:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>',
   settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009.1 19.6a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9.1a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>',
   users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="3.2"/><circle cx="17" cy="8" r="2.6"/><path d="M2.5 20c0-3.4 2.5-6.2 5.5-6.2s5.5 2.8 5.5 6.2"/><path d="M14.5 14.3c2.6.3 4.8 2.7 4.8 5.7"/></svg>',
   report:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19h16"/><rect x="6" y="10" width="3" height="7"/><rect x="11" y="6" width="3" height="11"/><rect x="16" y="13" width="3" height="4"/></svg>',
@@ -463,6 +473,7 @@ const NAV = [
   {id:'schedule', label:'ตารางเวร'},
   {id:'appt', label:'นัดหมายติดตั้ง'},
   {id:'planwork', label:'Planwork'},
+  {id:'artifact', label:'Artifact'},
   {id:'ot', label:'ชั่วโมง OT'},
   {id:'leave', label:'ตารางคนลา'},
   {id:'team', label:'รายชื่อทีม'},
@@ -484,8 +495,8 @@ async function sha256(text){
 }
 
 async function init(){
-  const [employees, shifts, appointments, otEntries, leaves, planworks, users] = await Promise.all([
-    loadList('employees'), loadList('shifts'), loadList('appointments'), loadList('ot-entries'), loadList('leaves'), loadList('planworks'), loadList('users')
+  const [employees, shifts, appointments, otEntries, leaves, planworks, artifacts, users] = await Promise.all([
+    loadList('employees'), loadList('shifts'), loadList('appointments'), loadList('ot-entries'), loadList('leaves'), loadList('planworks'), loadList('artifacts'), loadList('users')
   ]);
   state.employees = employees;
   state.shifts = shifts;
@@ -493,6 +504,7 @@ async function init(){
   state.otEntries = otEntries;
   state.leaves = leaves;
   state.planworks = planworks;
+  state.artifacts = artifacts;
   state.users = users;
 
   if(state.employees.length===0){
@@ -695,6 +707,7 @@ function renderContent(){
   else if(state.route==='schedule') c.innerHTML = viewSchedule();
   else if(state.route==='appt') c.innerHTML = viewAppt();
   else if(state.route==='planwork') c.innerHTML = viewPlanwork();
+  else if(state.route==='artifact') c.innerHTML = viewArtifact();
   else if(state.route==='ot') c.innerHTML = viewOT();
   else if(state.route==='leave') c.innerHTML = viewLeave();
   else if(state.route==='team') c.innerHTML = viewTeam();
@@ -3124,6 +3137,334 @@ function exportPlanworksBackup(){
   XLSX.writeFile(wb, `Planwork_Backup_${fmtDate(new Date())}.xlsx`);
 }
 
+/* ================= ARTIFACT (Urgent Circuit Pending Artifact) ================= */
+// Columns mirror the header row of Urgent_Circuit_Pending_Artifact.xlsx:
+// Request Date | Circuit | Requestor Name | Urgent Reason | Artifact Owner |
+// Contact Number | Email | ArtifactDue | Status OFCL | Status Artifact | Comment
+const ART_PAGE_SIZES = [10, 25, 50, 100];
+const ART_OFCL_STATUS = ['Approved', 'Pending', 'ยังไม่มี OFCL'];
+const ART_STATUS = ['Pending', 'Completed'];
+
+function artIsOverdue(a){
+  if(!a.dueDate) return false;
+  if(/^completed$/i.test((a.statusArtifact||'').trim())) return false;
+  return a.dueDate < fmtDate(new Date());
+}
+function artStatusBadgeCls(a){
+  if(/^completed$/i.test((a.statusArtifact||'').trim())) return 'done';
+  return artIsOverdue(a) ? 'cancelled' : 'pending';
+}
+
+function viewArtifact(){
+  let list = state.artifacts.slice().sort((a,b)=> (b.reqDate||'').localeCompare(a.reqDate||''));
+  const q = state.artifactSearch.trim().toLowerCase();
+  if(q){
+    list = list.filter(a=> [a.circuit,a.requestor,a.urgentReason,a.owner,a.phone,a.email,a.comment]
+      .some(v=> (v||'').toLowerCase().includes(q)));
+  }
+  if(state.artifactDateFrom){ list = list.filter(a=> (a.reqDate||'') >= state.artifactDateFrom); }
+  if(state.artifactDateTo){ list = list.filter(a=> (a.reqDate||'') <= state.artifactDateTo); }
+  if(state.artifactStatusFilter==='pending') list = list.filter(a=> !/^completed$/i.test((a.statusArtifact||'').trim()));
+  else if(state.artifactStatusFilter==='completed') list = list.filter(a=> /^completed$/i.test((a.statusArtifact||'').trim()));
+
+  const totalAll = state.artifacts.length;
+  const pendingAll = state.artifacts.filter(a=> !/^completed$/i.test((a.statusArtifact||'').trim())).length;
+  const overdueAll = state.artifacts.filter(artIsOverdue).length;
+  const completedAll = totalAll - pendingAll;
+
+  const total = list.length;
+  const pageSize = state.artifactPageSize;
+  const totalPages = Math.max(1, Math.ceil(total/pageSize));
+  if(state.artifactPage>totalPages) state.artifactPage = totalPages;
+  if(state.artifactPage<1) state.artifactPage = 1;
+  const pageStart = total? (state.artifactPage-1)*pageSize : 0;
+  const pageEnd = Math.min(total, pageStart+pageSize);
+  const pageList = list.slice(pageStart, pageEnd);
+
+  const selectedOnPage = pageList.filter(a=>state.artifactSelected.has(a.id)).length;
+  const selectedCount = state.artifactSelected.size;
+  const pagerItems = pwBuildPager(state.artifactPage, totalPages);
+
+  return `
+    <div class="topbar">
+      <div><h1>Artifact</h1><div class="sub">Urgent Circuit Pending Artifact — ติดตามคำขอติดตั้งด่วนและการขึ้นระบบ Artifact</div></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-ghost" id="importArtExcel">⬆ อัปโหลดจาก Excel</button>
+        <input type="file" id="artFileInput" accept=".xlsx,.xls" style="display:none;">
+        <button class="btn btn-ghost" id="exportArtExcel">⬇ Export Excel (Backup)</button>
+        <button class="btn btn-danger" id="clearAllArt">🗑 ล้างข้อมูลทั้งหมด</button>
+        <button class="btn btn-amber" id="addArtifact">+ เพิ่ม Artifact</button>
+      </div>
+    </div>
+    <div id="artImportStatus"></div>
+
+    <div class="grid-stats">
+      <div class="stat-card amber"><div class="n">${totalAll}</div><div class="l">ทั้งหมด</div></div>
+      <div class="stat-card violet"><div class="n">${pendingAll}</div><div class="l">Status Artifact: Pending</div></div>
+      <div class="stat-card red"><div class="n">${overdueAll}</div><div class="l">เลยกำหนด ArtifactDue</div></div>
+      <div class="stat-card teal"><div class="n">${completedAll}</div><div class="l">Completed</div></div>
+    </div>
+
+    <div class="filters">
+      <div class="field" style="min-width:260px;">
+        <label>ค้นหา</label>
+        <input id="artSearch" value="${state.artifactSearch}" placeholder="ค้นหา Circuit, Requestor, Owner, Email, Comment ...">
+      </div>
+      <div class="field" style="min-width:160px;">
+        <label>จากวันที่ (Request Date)</label>
+        <input type="date" id="artDateFrom" value="${state.artifactDateFrom||''}">
+      </div>
+      <div class="field" style="min-width:160px;">
+        <label>ถึงวันที่ (Request Date)</label>
+        <input type="date" id="artDateTo" value="${state.artifactDateTo||''}">
+      </div>
+      <div class="field" style="min-width:160px;">
+        <label>สถานะ Artifact</label>
+        <select id="artStatusFilter">
+          <option value="all" ${state.artifactStatusFilter==='all'?'selected':''}>ทั้งหมด</option>
+          <option value="pending" ${state.artifactStatusFilter==='pending'?'selected':''}>Pending</option>
+          <option value="completed" ${state.artifactStatusFilter==='completed'?'selected':''}>Completed</option>
+        </select>
+      </div>
+      <div class="field" style="flex:0 0 auto; align-self:flex-end;">
+        <button class="btn btn-ghost" id="artDateClearFilter" type="button">ล้างตัวกรอง</button>
+      </div>
+      <div style="font-size:11.5px; color:var(--slate-400); max-width:460px; padding-bottom:4px;">
+        ไฟล์ Excel แถวแรกต้องเป็นหัวตาราง ระบบจะจับคู่คอลัมน์ตามชื่อ: Request Date, Circuit, Requestor Name, Urgent Reason, Artifact Owner, Contact Number, Email, ArtifactDue, Status OFCL, Status Artifact, Comment (ไม่สนตัวพิมพ์เล็ก-ใหญ่/ช่องว่าง)
+      </div>
+    </div>
+
+    ${selectedCount? `
+    <div class="card" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 16px;">
+      <span style="font-size:12.5px; font-weight:600;">เลือกแล้ว ${selectedCount} รายการ</span>
+      <span style="font-size:12.5px; color:var(--slate-400);">ตั้ง Status Artifact เป็น:</span>
+      <button class="btn btn-ghost btn-sm" id="artBulkSetPending" type="button">Pending</button>
+      <button class="btn btn-ghost btn-sm" id="artBulkSetCompleted" type="button">✓ Completed</button>
+      <button class="btn btn-danger btn-sm" id="artBulkDelete" type="button">ลบที่เลือก</button>
+      <button class="btn btn-ghost btn-sm" id="artBulkClearSel" type="button">ล้างการเลือก</button>
+    </div>` : ''}
+
+    <div class="card" style="overflow-x:auto;">
+      ${pageList.length? `
+      <table style="min-width:1280px;">
+        <thead>
+          <tr>
+            <th style="width:30px;"><input type="checkbox" id="artSelectAllPage" ${selectedOnPage===pageList.length&&pageList.length? 'checked':''}></th>
+            <th>Request Date</th>
+            <th>Circuit</th>
+            <th>Requestor Name</th>
+            <th>Urgent Reason</th>
+            <th>Artifact Owner</th>
+            <th>Contact Number</th>
+            <th>Email</th>
+            <th>ArtifactDue</th>
+            <th>Status OFCL</th>
+            <th>Status Artifact</th>
+            <th>Comment</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${pageList.map(a=>{
+            const overdue = artIsOverdue(a);
+            const statusOptions = ART_STATUS.includes(a.statusArtifact) || !a.statusArtifact
+              ? ART_STATUS
+              : [a.statusArtifact, ...ART_STATUS];
+            return `
+            <tr${overdue?' style="background:#FEF6F6;"':''}>
+              <td><input type="checkbox" class="art-row-chk" data-rowchk="${a.id}" ${state.artifactSelected.has(a.id)?'checked':''}></td>
+              <td class="mono">${dmy(a.reqDate)}</td>
+              <td style="font-weight:600;">${a.circuit||'-'}</td>
+              <td>${a.requestor||'-'}</td>
+              <td style="max-width:220px; white-space:pre-wrap;">${a.urgentReason||'-'}</td>
+              <td>${a.owner||'-'}</td>
+              <td class="mono">${a.phone||'-'}</td>
+              <td>${a.email||'-'}</td>
+              <td class="mono" ${overdue?'style="color:#8a1f1f; font-weight:700;"':''}>${dmy(a.dueDate)}${overdue?' ⚠':''}</td>
+              <td>${a.statusOfcl||'-'}</td>
+              <td>
+                <select data-artstatus="${a.id}" class="badge-select ${artStatusBadgeCls(a)==='done'?'ref-completed':(artStatusBadgeCls(a)==='cancelled'?'ref-cancel':'ref-pending')}">
+                  ${statusOptions.map(o=>`<option value="${o}" ${a.statusArtifact===o?'selected':''}>${o}</option>`).join('')}
+                </select>
+              </td>
+              <td style="max-width:160px; white-space:pre-wrap;">${a.comment||'-'}</td>
+              <td style="white-space:nowrap;">
+                <button class="btn btn-ghost btn-sm" data-editart="${a.id}">แก้ไข</button>
+                <button class="btn btn-danger btn-sm" data-delart="${a.id}">ลบ</button>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-top:14px; padding-top:14px; border-top:1px solid var(--line);">
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div style="font-size:12.5px; color:var(--slate-400);">Showing ${total? pageStart+1:0} to ${pageEnd} of ${total} entries</div>
+          <div style="display:flex; align-items:center; gap:6px; font-size:12.5px;">
+            Show <select id="artPageSize" style="width:auto; padding:4px 8px;">${ART_PAGE_SIZES.map(s=>`<option value="${s}" ${state.artifactPageSize===s?'selected':''}>${s}</option>`).join('')}</select> entries
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" id="artPagePrev" type="button" ${state.artifactPage<=1?'disabled':''}>Previous</button>
+          ${pagerItems.map(it=> it.ellipsis
+            ? `<span style="padding:0 6px; color:var(--slate-400);">...</span>`
+            : `<button class="btn ${it.page===state.artifactPage?'btn-amber':'btn-ghost'} btn-sm" data-page-art="${it.page}" type="button">${it.page}</button>`
+          ).join('')}
+          <button class="btn btn-ghost btn-sm" id="artPageNext" type="button" ${state.artifactPage>=totalPages?'disabled':''}>Next</button>
+        </div>
+      </div>
+      ` : `<div class="empty">ยังไม่มีข้อมูล Artifact ${q||state.artifactDateFrom||state.artifactDateTo||state.artifactStatusFilter!=='all'?'ที่ตรงกับการค้นหา/ตัวกรอง':''}</div>`}
+    </div>
+  `;
+}
+
+function openArtifactDialog(existing){
+  const dlg = document.getElementById('dlg');
+  dlg.innerHTML = `
+    <div class="dialog-head"><h3>${existing?'แก้ไข Artifact':'เพิ่ม Artifact'}</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+    <div class="dialog-body">
+      <div class="field-row">
+        <div class="field"><label>Request Date</label><input type="date" id="f_reqdate" value="${existing? existing.reqDate : fmtDate(new Date())}"></div>
+        <div class="field"><label>Circuit</label><input id="f_circuit" value="${existing? existing.circuit||'':''}" placeholder="เช่น V01091B"></div>
+      </div>
+      <div class="field"><label>Requestor Name</label><input id="f_requestor" value="${existing? existing.requestor||'':''}"></div>
+      <div class="field"><label>Urgent Reason</label><textarea id="f_reason" rows="2" placeholder="สาเหตุการขอติดตั้งด่วน">${existing? existing.urgentReason||'':''}</textarea></div>
+      <div class="field-row">
+        <div class="field"><label>Artifact Owner</label><input id="f_owner" value="${existing? existing.owner||'':''}"></div>
+        <div class="field"><label>Contact Number</label><input id="f_phone" value="${existing? existing.phone||'':''}"></div>
+      </div>
+      <div class="field"><label>Email</label><input id="f_email" value="${existing? existing.email||'':''}"></div>
+      <div class="field-row">
+        <div class="field"><label>ArtifactDue</label><input type="date" id="f_duedate" value="${existing? existing.dueDate||'':''}"></div>
+        <div class="field"><label>Status OFCL</label>
+          <select id="f_ofcl">
+            ${(()=>{ const cur = existing? existing.statusOfcl||'' : ''; const opts = (cur && !ART_OFCL_STATUS.includes(cur)) ? [cur, ...ART_OFCL_STATUS] : ART_OFCL_STATUS; return opts.map(o=>`<option value="${o}" ${cur===o?'selected':''}>${o}</option>`).join(''); })()}
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>Status Artifact</label>
+        <select id="f_artstatus">
+          ${(()=>{ const cur = existing? existing.statusArtifact||'' : 'Pending'; const opts = (cur && !ART_STATUS.includes(cur)) ? [cur, ...ART_STATUS] : ART_STATUS; return opts.map(o=>`<option value="${o}" ${cur===o?'selected':''}>${o}</option>`).join(''); })()}
+        </select>
+      </div>
+      <div class="field"><label>Comment</label><textarea id="f_comment" rows="2" placeholder="เช่น เลข NAT">${existing? existing.comment||'':''}</textarea></div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-ghost" id="dlgCancel">ยกเลิก</button>
+      <button class="btn btn-amber" id="saveArtifact">บันทึก</button>
+    </div>
+  `;
+  dlg.showModal();
+  dlg.querySelector('#dlgClose').onclick=()=>dlg.close();
+  dlg.querySelector('#dlgCancel').onclick=()=>dlg.close();
+
+  dlg.querySelector('#saveArtifact').onclick = async ()=>{
+    const circuit = dlg.querySelector('#f_circuit').value.trim();
+    if(!circuit){ alert('กรุณากรอก Circuit'); return; }
+    const data = {
+      reqDate: dlg.querySelector('#f_reqdate').value || fmtDate(new Date()),
+      circuit,
+      requestor: dlg.querySelector('#f_requestor').value.trim(),
+      urgentReason: dlg.querySelector('#f_reason').value.trim(),
+      owner: dlg.querySelector('#f_owner').value.trim(),
+      phone: dlg.querySelector('#f_phone').value.trim(),
+      email: dlg.querySelector('#f_email').value.trim(),
+      dueDate: dlg.querySelector('#f_duedate').value || '',
+      statusOfcl: dlg.querySelector('#f_ofcl').value.trim(),
+      statusArtifact: dlg.querySelector('#f_artstatus').value.trim(),
+      comment: dlg.querySelector('#f_comment').value.trim(),
+    };
+    const record = existing ? Object.assign({}, existing, data) : {id:uid(), ...data};
+    await saveItem('artifacts', record);
+    dlg.close(); renderContent();
+  };
+}
+
+/* ---------------- Excel import for Artifact ---------------- */
+const ART_HEADER_MAP = {
+  'requestdate':'reqDate', 'date':'reqDate',
+  'circuit':'circuit',
+  'requestorname':'requestor', 'requestor':'requestor',
+  'urgentreason':'urgentReason', 'reason':'urgentReason',
+  'artifactowner':'owner', 'owner':'owner',
+  'contactnumber':'phone', 'phone':'phone', 'tel':'phone',
+  'email':'email',
+  'artifactdue':'dueDate', 'due':'dueDate', 'duedate':'dueDate',
+  'statusofcl':'statusOfcl', 'ofcl':'statusOfcl', 'statusofclstatus':'statusOfcl',
+  'statusartifact':'statusArtifact',
+  'comment':'comment', 'comments':'comment',
+};
+
+async function handleArtifactExcelImport(file){
+  const statusEl = document.getElementById('artImportStatus');
+  if(statusEl) statusEl.innerHTML = `<div class="banner">⏳ กำลังอ่านไฟล์ ${file.name} ...</div>`;
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array', cellDates:false});
+    const sheetName = wb.SheetNames[0];
+    const sheet = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:''});
+    if(!rows.length){ throw new Error('ไม่พบข้อมูลในไฟล์'); }
+
+    const headerRow = rows[0];
+    const colMap = {};
+    headerRow.forEach((h, idx)=>{
+      const key = ART_HEADER_MAP[normHeader(h)];
+      if(key) colMap[idx] = key;
+    });
+    if(Object.keys(colMap).length===0){ throw new Error('ไม่พบคอลัมน์ที่ตรงกับหัวตารางที่รองรับ กรุณาตรวจสอบแถวแรกของไฟล์'); }
+
+    // key = Circuit + Request Date (both must match to count as the same record).
+    // Empty Circuit can never match anything, to avoid falsely grouping unrelated blank rows.
+    const artKey = a => `${(a.circuit||'').trim().toLowerCase()}|${a.reqDate}`;
+
+    const working = await loadList('artifacts');
+
+    let imported = 0, updated = 0, skipped = 0;
+    for(let r=1; r<rows.length; r++){
+      const row = rows[r];
+      if(!row || row.every(c=>c===''||c===undefined||c===null)){ continue; }
+      const rec = {reqDate:'', circuit:'', requestor:'', urgentReason:'', owner:'', phone:'', email:'', dueDate:'', statusOfcl:'', statusArtifact:'', comment:''};
+      Object.entries(colMap).forEach(([idx, key])=>{
+        const val = row[Number(idx)];
+        if(key==='reqDate' || key==='dueDate') rec[key] = parseFlexibleDate(val);
+        else rec[key] = String(val===undefined||val===null? '' : val).trim();
+      });
+      const hasContent = rec.circuit || rec.requestor || rec.owner;
+      if(!hasContent){ skipped++; continue; }
+      const existing = rec.circuit.trim() ? working.find(a=> a.circuit && a.circuit.trim() && artKey(a)===artKey(rec)) : null;
+      if(existing){
+        Object.assign(existing, rec);
+        updated++;
+      } else {
+        working.push({id:uid(), ...rec});
+        imported++;
+      }
+    }
+    await saveList('artifacts', working);
+    state.artifacts = working;
+    if(statusEl) statusEl.innerHTML = `<div class="banner">✅ นำเข้าสำเร็จ: เพิ่มใหม่ ${imported} รายการ, อัปเดตทับ ${updated} รายการ (Circuit+Request Date ตรงกัน)${skipped? ` (ข้ามแถวว่าง ${skipped} แถว)`:''}</div>`;
+    renderContent();
+  }catch(err){
+    console.error(err);
+    if(statusEl) statusEl.innerHTML = `<div class="banner" style="background:var(--red-dim); color:#8a1f1f;">⚠ นำเข้าไม่สำเร็จ: ${err.message||err}</div>`;
+  }
+}
+
+function exportArtifactsBackup(){
+  if(!state.artifacts.length){ alert('ไม่มีข้อมูล Artifact ให้ Export'); return; }
+  const rows = [['Request Date','Circuit','Requestor Name','Urgent Reason','Artifact Owner','Contact Number','Email','ArtifactDue','Status OFCL','Status Artifact','Comment']];
+  state.artifacts.slice().sort((a,b)=>(a.reqDate||'').localeCompare(b.reqDate||'')).forEach(a=>{
+    rows.push([
+      dmy(a.reqDate), a.circuit||'', a.requestor||'', a.urgentReason||'', a.owner||'',
+      a.phone||'', a.email||'', dmy(a.dueDate), a.statusOfcl||'', a.statusArtifact||'', a.comment||''
+    ]);
+  });
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, 'Urgent_Circuit_Pending_Artifact');
+  XLSX.writeFile(wb, `Artifact_Backup_${fmtDate(new Date())}.xlsx`);
+}
+
 /* ================= OT ================= */
 function viewOT(){
   const y = state.otYear, m = state.otMonth;
@@ -3748,6 +4089,101 @@ function bindContentEvents(){
   const pwPageNext = c.querySelector('#pwPageNext');
   if(pwPageNext) pwPageNext.onclick = ()=>{ state.planworkPage = state.planworkPage+1; renderContent(); };
   c.querySelectorAll('[data-page]').forEach(el=> el.onclick = ()=>{ state.planworkPage = Number(el.dataset.page); renderContent(); });
+
+  // artifact
+  const addArtBtn = c.querySelector('#addArtifact'); if(addArtBtn) addArtBtn.onclick = ()=> openArtifactDialog(null);
+  const artImportBtn = c.querySelector('#importArtExcel');
+  const artFileInput = c.querySelector('#artFileInput');
+  if(artImportBtn && artFileInput){
+    artImportBtn.onclick = ()=> artFileInput.click();
+    artFileInput.onchange = (e)=>{
+      const file = e.target.files[0];
+      if(file) handleArtifactExcelImport(file);
+      artFileInput.value = '';
+    };
+  }
+  c.querySelectorAll('[data-editart]').forEach(el=> el.onclick=()=> openArtifactDialog(state.artifacts.find(a=>a.id===el.dataset.editart)));
+  c.querySelectorAll('[data-delart]').forEach(el=> el.onclick= async ()=>{
+    if(!confirm('ยืนยันการลบรายการ Artifact นี้?')) return;
+    await deleteItem('artifacts', el.dataset.delart); renderContent();
+  });
+  c.querySelectorAll('[data-artstatus]').forEach(el=> el.onchange = async ()=>{
+    const a = state.artifacts.find(x=>x.id===el.dataset.artstatus);
+    if(!a) return;
+    const val = el.value;
+    await updateItems('artifacts', [el.dataset.artstatus], x=>{ x.statusArtifact = val; });
+    renderContent();
+  });
+
+  const artSearch = c.querySelector('#artSearch');
+  if(artSearch){
+    artSearch.oninput = ()=>{ state.artifactSearch = artSearch.value; };
+    artSearch.onkeydown = (e)=>{ if(e.key==='Enter'){ state.artifactPage=1; renderContent(); } };
+    artSearch.onblur = ()=>{ state.artifactPage=1; renderContent(); };
+  }
+  const artDateFrom = c.querySelector('#artDateFrom');
+  if(artDateFrom) artDateFrom.onchange = ()=>{ state.artifactDateFrom = artDateFrom.value; state.artifactPage=1; renderContent(); };
+  const artDateTo = c.querySelector('#artDateTo');
+  if(artDateTo) artDateTo.onchange = ()=>{ state.artifactDateTo = artDateTo.value; state.artifactPage=1; renderContent(); };
+  const artStatusFilter = c.querySelector('#artStatusFilter');
+  if(artStatusFilter) artStatusFilter.onchange = ()=>{ state.artifactStatusFilter = artStatusFilter.value; state.artifactPage=1; renderContent(); };
+  const artDateClearFilter = c.querySelector('#artDateClearFilter');
+  if(artDateClearFilter) artDateClearFilter.onclick = ()=>{ state.artifactSearch=''; state.artifactDateFrom=''; state.artifactDateTo=''; state.artifactStatusFilter='all'; state.artifactPage=1; renderContent(); };
+
+  // artifact: row selection checkboxes
+  c.querySelectorAll('.art-row-chk').forEach(el=> el.onchange = ()=>{
+    if(el.checked) state.artifactSelected.add(el.dataset.rowchk);
+    else state.artifactSelected.delete(el.dataset.rowchk);
+    renderContent();
+  });
+  const artSelectAllPage = c.querySelector('#artSelectAllPage');
+  if(artSelectAllPage) artSelectAllPage.onchange = ()=>{
+    c.querySelectorAll('.art-row-chk').forEach(el=>{
+      if(artSelectAllPage.checked) state.artifactSelected.add(el.dataset.rowchk);
+      else state.artifactSelected.delete(el.dataset.rowchk);
+    });
+    renderContent();
+  };
+  const artBulkSetPending = c.querySelector('#artBulkSetPending');
+  if(artBulkSetPending) artBulkSetPending.onclick = async ()=>{
+    await updateItems('artifacts', state.artifactSelected, a=>{ a.statusArtifact = 'Pending'; });
+    renderContent();
+  };
+  const artBulkSetCompleted = c.querySelector('#artBulkSetCompleted');
+  if(artBulkSetCompleted) artBulkSetCompleted.onclick = async ()=>{
+    await updateItems('artifacts', state.artifactSelected, a=>{ a.statusArtifact = 'Completed'; });
+    renderContent();
+  };
+  const artBulkDelete = c.querySelector('#artBulkDelete');
+  if(artBulkDelete) artBulkDelete.onclick = async ()=>{
+    if(!confirm(`ยืนยันการลบ Artifact ที่เลือก ${state.artifactSelected.size} รายการ?`)) return;
+    await deleteItems('artifacts', state.artifactSelected);
+    state.artifactSelected.clear();
+    renderContent();
+  };
+  const artBulkClearSel = c.querySelector('#artBulkClearSel');
+  if(artBulkClearSel) artBulkClearSel.onclick = ()=>{ state.artifactSelected.clear(); renderContent(); };
+
+  const exportArtExcelBtn = c.querySelector('#exportArtExcel');
+  if(exportArtExcelBtn) exportArtExcelBtn.onclick = ()=> exportArtifactsBackup();
+  const clearAllArtBtn = c.querySelector('#clearAllArt');
+  if(clearAllArtBtn) clearAllArtBtn.onclick = async ()=>{
+    if(!state.artifacts.length){ alert('ไม่มีข้อมูล Artifact ให้ล้าง'); return; }
+    if(!confirm(`⚠ ยืนยันการล้างข้อมูล Artifact ทั้งหมด ${state.artifacts.length} รายการ?\nแนะนำให้กด "Export Excel (Backup)" เพื่อสำรองข้อมูลไว้ก่อน\n\nการลบนี้ไม่สามารถกู้คืนได้`)) return;
+    if(!confirm('ยืนยันอีกครั้ง: ต้องการลบข้อมูล Artifact ทั้งหมดจริงหรือไม่?')) return;
+    state.artifacts = [];
+    state.artifactSelected.clear();
+    await saveList('artifacts', state.artifacts); renderContent();
+  };
+
+  // artifact: pagination
+  const artPageSize = c.querySelector('#artPageSize');
+  if(artPageSize) artPageSize.onchange = ()=>{ state.artifactPageSize = Number(artPageSize.value); state.artifactPage=1; renderContent(); };
+  const artPagePrev = c.querySelector('#artPagePrev');
+  if(artPagePrev) artPagePrev.onclick = ()=>{ state.artifactPage = Math.max(1, state.artifactPage-1); renderContent(); };
+  const artPageNext = c.querySelector('#artPageNext');
+  if(artPageNext) artPageNext.onclick = ()=>{ state.artifactPage = state.artifactPage+1; renderContent(); };
+  c.querySelectorAll('[data-page-art]').forEach(el=> el.onclick = ()=>{ state.artifactPage = Number(el.dataset.pageArt); renderContent(); });
 
   // OT
   const otAdd = c.querySelector('#addOT'); if(otAdd) otAdd.onclick=()=>openOTDialog();
