@@ -1924,7 +1924,7 @@ function approveEmailFields(appt){
     `เบอร์โทรช่างที่รับผิดชอบ: ${appt.technicianPhone||'-'}`,
     appt.note? `หมายเหตุงาน: ${appt.note}` : null,
     '',
-    `ผู้อยู่เวรที่แจ้งในวันที่ ${dmy(appt.date)}:`,
+    `ADA Standby ในวันที่ ${dmy(appt.date)}:`,
     onDutyList.length? onDutyList.map(l=>`- ${l}`).join('\n') : '(ไม่ได้ระบุชื่อผู้อยู่เวร)',
   ].filter(l=> l!==null).join('\n');
   return { to: appt.submittedByEmail||'', cc: ccList.join('; '), subject, body: bodyLines };
@@ -2009,7 +2009,7 @@ function bulkApproveEmailFields(appts){
       `  ช่างผู้รับผิดชอบ: ${appt.technicianName||empName(appt.employeeId)||'-'}`,
       `  เบอร์โทรช่างที่รับผิดชอบ: ${appt.technicianPhone||'-'}`,
       appt.note? `  หมายเหตุงาน: ${appt.note}` : null,
-      `  ผู้อยู่เวรที่แจ้ง: ${onDutyList.length? onDutyList.join(', ') : '(ไม่ได้ระบุชื่อผู้อยู่เวร)'}`,
+      `  ADA Standby ในวันที่ ${dmy(appt.date)}: ${onDutyList.length? onDutyList.join(', ') : '(ไม่ได้ระบุชื่อผู้อยู่เวร)'}`,
     ].filter(l=> l!==null).join('\n');
   });
   const subject = `นัดหมายติดตั้งได้รับการอนุมัติแล้ว (${appts.length} รายการ)`;
