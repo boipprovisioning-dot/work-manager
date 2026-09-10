@@ -227,6 +227,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ---------------- storage helpers (Supabase) ---------------- */
@@ -967,6 +968,28 @@ function computeReportData(){
   const pwCompletedCount = pwInRange.filter(p=>pwStatusOf(p)==='completed').length;
   const pwCancelledCount = pwInRange.filter(p=>pwStatusOf(p)==='cancelled').length;
 
+  // Planwork&TCM (Voice) — mirrors the pwtcm tab's own grouping/tag logic (see pwGroupTag,
+  // splitDetailItems) so the report numbers always match what that tab shows.
+  const pwtcmInRange = state.pwtcm.filter(p=> p.date>=start && p.date<=end);
+  const pwtcmGroupsMap = {};
+  pwtcmInRange.forEach(r=>{
+    const key = (r.planNo||'').trim() || '(ไม่ระบุเลข Planwork&TCM)';
+    if(!pwtcmGroupsMap[key]) pwtcmGroupsMap[key] = [];
+    pwtcmGroupsMap[key].push(r);
+  });
+  const pwtcmGroupKeys = Object.keys(pwtcmGroupsMap);
+  let pwtcmPwCount = 0, pwtcmTcmCount = 0;
+  pwtcmGroupKeys.forEach(k=>{
+    if(pwGroupTag(pwtcmGroupsMap[k])==='TCM') pwtcmTcmCount++; else pwtcmPwCount++;
+  });
+  let pwtcmCircuitCount = 0;
+  const pwtcmGroupSummary = pwtcmGroupKeys.map(k=>{
+    const rowsInGroup = pwtcmGroupsMap[k];
+    const circuitCount = rowsInGroup.reduce((s,r)=> s + splitDetailItems(r.detail).length, 0);
+    pwtcmCircuitCount += circuitCount;
+    return { key:k, tag: pwGroupTag(rowsInGroup), rowCount: rowsInGroup.length, circuitCount };
+  });
+
   const otInRange = state.otEntries.filter(o=> o.date>=start && o.date<=end);
   const otTotals = {};
   const otWeightedTotals = {};
@@ -994,13 +1017,14 @@ function computeReportData(){
     shiftsInRange, shiftTotals,
     apptsInRange, apptCounts, apptDoneCount,
     pwInRange, pwByType, pwCompletedCount, pwCancelledCount,
+    pwtcmInRange, pwtcmGroupKeys, pwtcmPwCount, pwtcmTcmCount, pwtcmCircuitCount, pwtcmGroupSummary,
     otInRange, otTotals, otSumAll, otWeightedTotals, otWeightedSumAll,
     leavesInRange, leaveDaysByEmp, leaveDaysByType, totalLeaveDays,
   };
 }
 
 function viewReport(){
-  const {start, end, label, shiftsInRange, shiftTotals, apptsInRange, apptCounts, apptDoneCount, pwInRange, pwByType, pwCompletedCount, pwCancelledCount, otTotals, otSumAll, otWeightedTotals, leaveDaysByEmp, leaveDaysByType, totalLeaveDays} = computeReportData();
+  const {start, end, label, shiftsInRange, shiftTotals, apptsInRange, apptCounts, apptDoneCount, pwInRange, pwByType, pwCompletedCount, pwCancelledCount, pwtcmInRange, pwtcmGroupKeys, pwtcmPwCount, pwtcmTcmCount, pwtcmCircuitCount, pwtcmGroupSummary, otTotals, otSumAll, otWeightedTotals, leaveDaysByEmp, leaveDaysByType, totalLeaveDays} = computeReportData();
 
   return `
     <div class="topbar">
@@ -1026,6 +1050,7 @@ function viewReport(){
       <div class="stat-card amber"><div class="n">${shiftsInRange.length}</div><div class="l">เวรที่จัดทั้งหมด</div></div>
       <div class="stat-card teal"><div class="n">${apptsInRange.length}</div><div class="l">นัดหมายติดตั้ง</div></div>
       <div class="stat-card violet"><div class="n">${pwInRange.length}</div><div class="l">Planwork</div></div>
+      <div class="stat-card violet"><div class="n">${pwtcmGroupKeys.length}</div><div class="l">Planwork&TCM (Voice)</div></div>
       <div class="stat-card amber"><div class="n">${otSumAll.toFixed(1)}</div><div class="l">ชั่วโมง OT รวม</div></div>
       <div class="stat-card red"><div class="n">${totalLeaveDays}</div><div class="l">วันลารวม (วัน)</div></div>
     </div>
@@ -1067,6 +1092,25 @@ function viewReport(){
           <tr style="font-weight:700; border-top:2px solid var(--line);"><td>รวม</td><td class="mono">${pwInRange.length}</td><td class="mono">${pwCompletedCount}</td><td class="mono">${pwCancelledCount}</td></tr>
         </tbody>
       </table>` : `<div class="empty">ไม่มี Planwork ในช่วงเวลานี้</div>`}
+    </div>
+
+    <div class="card">
+      <h3>สรุป Planwork&amp;TCM (Voice) <span class="hint">แยกตาม (PW) / (TCM) และผู้รับผิดชอบ</span></h3>
+      ${pwtcmInRange.length? `
+      <div class="grid-stats" style="margin-bottom:14px;">
+        <div class="stat-card violet"><div class="n">${pwtcmInRange.length}</div><div class="l">รายการทั้งหมด</div></div>
+        <div class="stat-card teal"><div class="n">${pwtcmGroupKeys.length}</div><div class="l">เลข Planwork&TCM ไม่ซ้ำ</div></div>
+        <div class="stat-card amber"><div class="n">${pwtcmCircuitCount}</div><div class="l">วงจร (Circuit) ทั้งหมด</div></div>
+        <div class="stat-card teal"><div class="n">${pwtcmPwCount}</div><div class="l">กลุ่ม (PW)</div></div>
+        <div class="stat-card violet"><div class="n">${pwtcmTcmCount}</div><div class="l">กลุ่ม (TCM)</div></div>
+      </div>
+      <table>
+        <thead><tr><th>เลข Planwork&TCM</th><th>ประเภท</th><th>จำนวนวงจร (Circuit)</th></tr></thead>
+        <tbody>
+          ${pwtcmGroupSummary.map(g=>`<tr><td class="mono">${g.key}</td><td><span class="badge" style="background:${g.tag==='TCM'?'#6E62C922':'#159E9322'}; color:${g.tag==='TCM'?'#6E62C9':'#159E93'};">${g.tag}</span></td><td class="mono" style="font-weight:700;">${g.circuitCount}</td></tr>`).join('')}
+          <tr style="font-weight:700; border-top:2px solid var(--line);"><td colspan="2">รวม</td><td class="mono">${pwtcmCircuitCount}</td></tr>
+        </tbody>
+      </table>` : `<div class="empty">ไม่มี Planwork&TCM (Voice) ในช่วงเวลานี้</div>`}
     </div>
 
     <div class="card">
@@ -1112,6 +1156,8 @@ async function exportReportToExcel(){
       ['Planwork', d.pwInRange.length],
       ['Planwork Completed', d.pwCompletedCount],
       ['Planwork Cancelled', d.pwCancelledCount],
+      ['Planwork&TCM (Voice) - รายการ', d.pwtcmInRange.length],
+      ['Planwork&TCM (Voice) - เลขไม่ซ้ำ', d.pwtcmGroupKeys.length],
       ['ชั่วโมง OT รวม', Number(d.otSumAll.toFixed(1))],
       ['วันลารวม (วัน)', d.totalLeaveDays],
     ];
@@ -1132,6 +1178,19 @@ async function exportReportToExcel(){
     Object.entries(d.pwByType).forEach(([k,v])=> pwRows.push([k, v.total, v.completed||0, v.cancelled||0]));
     pwRows.push(['รวม', d.pwInRange.length, d.pwCompletedCount, d.pwCancelledCount]);
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pwRows), 'Planwork');
+
+    const pwtcmRows = [
+      ['หัวข้อ','จำนวน'],
+      ['รายการทั้งหมด', d.pwtcmInRange.length],
+      ['เลข Planwork&TCM ไม่ซ้ำ', d.pwtcmGroupKeys.length],
+      ['วงจร (Circuit) ทั้งหมด', d.pwtcmCircuitCount],
+      ['กลุ่ม (PW)', d.pwtcmPwCount],
+      ['กลุ่ม (TCM)', d.pwtcmTcmCount],
+      [],
+      ['เลข Planwork&TCM','ประเภท','จำนวนวงจร (Circuit)'],
+    ];
+    d.pwtcmGroupSummary.forEach(g=> pwtcmRows.push([g.key, g.tag, g.circuitCount]));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pwtcmRows), 'PlanworkTCM voice');
 
     const otRows = [['พนักงาน','ชั่วโมง OT','ชั่วโมงเทียบเท่า (คูณแรง)']];
     state.employees.forEach(e=> otRows.push([e.name, Number((d.otTotals[e.id]||0).toFixed(1)), Number((d.otWeightedTotals[e.id]||0).toFixed(1))]));
@@ -1194,6 +1253,15 @@ async function exportReportToPptx(){
         options:{ indexAxis:'y', plugins:{legend:{display:false}} }
       }, 900, 500);
       slides.push({type:'image', title:'Planwork แยกตาม Work Type', dataUrl:pwChart, wIn:9, hIn:5});
+    }
+
+    if(d.pwtcmGroupKeys.length){
+      const pwtcmChart = await renderChartPng({
+        type:'bar',
+        data:{ labels: d.pwtcmGroupSummary.map(g=>g.key), datasets:[{ label:'จำนวนวงจร (Circuit)', data: d.pwtcmGroupSummary.map(g=>g.circuitCount), backgroundColor: d.pwtcmGroupSummary.map(g=> g.tag==='TCM' ? '#6E62C9' : '#159E93') }] },
+        options:{ indexAxis:'y', plugins:{legend:{display:false}} }
+      }, 900, 500);
+      slides.push({type:'image', title:'Planwork&TCM (Voice) — จำนวนวงจรแยกตามเลข (PW/TCM)', dataUrl:pwtcmChart, wIn:9, hIn:5});
     }
 
     if(empNames.length){
@@ -1287,6 +1355,29 @@ async function renderChartPng(config, wPx, hPx){
     config.options = config.options || {};
     config.options.animation = false;
     config.options.responsive = false;
+    config.options.plugins = config.options.plugins || {};
+    // Show the numeric value on every chart used in the report export (bar + doughnut/pie),
+    // unless the caller already supplied its own datalabels config.
+    if(typeof ChartDataLabels !== 'undefined' && config.options.plugins.datalabels === undefined){
+      if(typeof Chart !== 'undefined' && Chart.registry && !Chart.registry.plugins.get('datalabels')){
+        Chart.register(ChartDataLabels);
+      }
+      const isDoughnutLike = config.type==='doughnut' || config.type==='pie';
+      const fmt = (v)=> (typeof v==='number' ? (Number.isInteger(v) ? v : Number(v.toFixed(1))) : v);
+      config.options.plugins.datalabels = isDoughnutLike ? {
+        color:'#ffffff',
+        font:{ weight:'700', size:13 },
+        formatter: fmt,
+      } : {
+        color:'#1f2430',
+        anchor:'end',
+        align:'end',
+        clamp:true,
+        offset:4,
+        font:{ weight:'700', size:11 },
+        formatter: fmt,
+      };
+    }
     const chart = new Chart(canvas.getContext('2d'), config);
     requestAnimationFrame(()=>{
       requestAnimationFrame(()=>{
