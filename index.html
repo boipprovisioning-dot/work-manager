@@ -91,6 +91,15 @@
   .card h3{ margin:0 0 12px 0; font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:space-between; }
   .card h3 .hint{ font-weight:500; font-size:11.5px; color:var(--slate-400); }
 
+  details.pw-group{ padding:0; }
+  details.pw-group summary.pw-summary{ list-style:none; cursor:pointer; padding:16px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  details.pw-group summary.pw-summary::-webkit-details-marker{ display:none; }
+  details.pw-group summary.pw-summary::marker{ content:''; }
+  details.pw-group .pw-caret{ display:inline-block; transition:transform .15s ease; color:var(--slate-400); }
+  details.pw-group[open] summary.pw-summary .pw-caret{ transform:rotate(90deg); }
+  details.pw-group > div{ padding:0 16px 16px 16px; }
+  details.pw-group .hint{ font-weight:500; font-size:11.5px; color:var(--slate-400); }
+
   table{ width:100%; border-collapse:collapse; font-size:13px; }
   th{ text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--slate-400); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--line);}
   td{ padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:middle; }
@@ -319,6 +328,7 @@ function keyToStateField(key){
     'ot-entries':'otEntries',
     'leaves':'leaves',
     'planworks':'planworks',
+    'pwtcm':'pwtcm',
     'artifacts':'artifacts',
     'users':'users',
   }[key];
@@ -373,6 +383,10 @@ let state = {
   planworkPage: 1,
   planworkPageSize: 10,
   planworkSelected: new Set(),
+  pwtcm: [],          // {id, date, time, planNo, detail, assignBy, remark} — mirrors "ฟอร์ม planworkTCM voice.xlsx"
+  pwtcmSearch: '',
+  pwtcmDateFrom: '',
+  pwtcmDateTo: '',
   artifactSearch: '',
   artifactDateFrom: '',
   artifactDateTo: '',
@@ -463,6 +477,7 @@ const ICONS = {
   team:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6"/><circle cx="17" cy="9" r="2.4"/><path d="M17.5 14.2c2.5.5 4.5 2.4 4.5 5.3"/></svg>',
   calendar:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><circle cx="8" cy="14" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="14" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>',
   planwork:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 3v3h8V3"/><path d="M8 11h8M8 15h8M8 19h5"/></svg>',
+  pwtcm:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3v4a1 1 0 001 1h4"/><path d="M6 3h8l5 5v13a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M8.5 13.2c0 2.4 1.9 4.3 4.3 4.3.4 0 .7-.3.7-.6v-.9c0-.3-.2-.5-.5-.6l-1.2-.3c-.2 0-.4 0-.5.2l-.3.4c-.8-.4-1.4-1-1.8-1.8l.4-.3c.2-.1.2-.3.2-.5l-.3-1.2c0-.3-.3-.5-.6-.5h-.9c-.3 0-.6.3-.6.7z"/></svg>',
   artifact:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>',
   settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009.1 19.6a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9.1a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>',
   users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="3.2"/><circle cx="17" cy="8" r="2.6"/><path d="M2.5 20c0-3.4 2.5-6.2 5.5-6.2s5.5 2.8 5.5 6.2"/><path d="M14.5 14.3c2.6.3 4.8 2.7 4.8 5.7"/></svg>',
@@ -476,6 +491,7 @@ const NAV = [
   {id:'schedule', label:'ตารางเวร'},
   {id:'appt', label:'นัดหมายติดตั้ง'},
   {id:'planwork', label:'Planwork'},
+  {id:'pwtcm', label:'Planwork&TCM(voice)'},
   {id:'artifact', label:'Artifact'},
   {id:'ot', label:'ชั่วโมง OT'},
   {id:'leave', label:'ตารางคนลา'},
@@ -498,8 +514,8 @@ async function sha256(text){
 }
 
 async function init(){
-  const [employees, shifts, appointments, otEntries, leaves, planworks, artifacts, users] = await Promise.all([
-    loadList('employees'), loadList('shifts'), loadList('appointments'), loadList('ot-entries'), loadList('leaves'), loadList('planworks'), loadList('artifacts'), loadList('users')
+  const [employees, shifts, appointments, otEntries, leaves, planworks, pwtcm, artifacts, users] = await Promise.all([
+    loadList('employees'), loadList('shifts'), loadList('appointments'), loadList('ot-entries'), loadList('leaves'), loadList('planworks'), loadList('pwtcm'), loadList('artifacts'), loadList('users')
   ]);
   state.employees = employees;
   state.shifts = shifts;
@@ -507,6 +523,7 @@ async function init(){
   state.otEntries = otEntries;
   state.leaves = leaves;
   state.planworks = planworks;
+  state.pwtcm = pwtcm;
   state.artifacts = artifacts;
   state.users = users;
 
@@ -710,6 +727,7 @@ function renderContent(){
   else if(state.route==='schedule') c.innerHTML = viewSchedule();
   else if(state.route==='appt') c.innerHTML = viewAppt();
   else if(state.route==='planwork') c.innerHTML = viewPlanwork();
+  else if(state.route==='pwtcm') c.innerHTML = viewPwtcm();
   else if(state.route==='artifact') c.innerHTML = viewArtifact();
   else if(state.route==='ot') c.innerHTML = viewOT();
   else if(state.route==='leave') c.innerHTML = viewLeave();
@@ -3209,6 +3227,286 @@ function exportPlanworksBackup(){
   XLSX.writeFile(wb, `Planwork_Backup_${fmtDate(new Date())}.xlsx`);
 }
 
+/* ================= PLANWORK & TCM (VOICE) ================= */
+// Mirrors "ฟอร์ม planworkTCM voice.xlsx" 1:1 — header row: D/M/Y | Time | Planwork&TCM | Detail | Assingment By | Remark
+// The Detail column in that source file packs multiple circuits into one cell as a
+// numbered list ("1. ... 2. ... 3. ..."), so we split it into sub-rows for display only
+// (the stored record still keeps the raw Detail text, unchanged, for round-trip export).
+function viewPwtcm(){
+  let list = state.pwtcm.slice().sort((a,b)=> (a.date||'').localeCompare(b.date||'') || (a.time||'').localeCompare(b.time||''));
+  const q = state.pwtcmSearch.trim().toLowerCase();
+  if(q){
+    list = list.filter(r=> [r.planNo, r.detail, r.assignBy, r.remark, r.time]
+      .some(v=> (v||'').toLowerCase().includes(q)));
+  }
+  if(state.pwtcmDateFrom){ list = list.filter(r=> (r.date||'') >= state.pwtcmDateFrom); }
+  if(state.pwtcmDateTo){ list = list.filter(r=> (r.date||'') <= state.pwtcmDateTo); }
+
+  // group by Planwork&TCM number — rows keep their date-ascending order within each group,
+  // and groups themselves are ordered by the earliest date of their first row
+  const groupOrder = [];
+  const groups = {};
+  list.forEach(r=>{
+    const key = (r.planNo||'').trim() || '(ไม่ระบุเลข Planwork&TCM)';
+    if(!groups[key]){ groups[key] = []; groupOrder.push(key); }
+    groups[key].push(r);
+  });
+  const total = list.length;
+
+  return `
+    <div class="topbar">
+      <div><h1>Planwork&amp;TCM (Voice)</h1><div class="sub">งาน Planwork/TCM ฝั่ง Voice · IP-DID — จัดกลุ่มตามเลข Planwork&amp;TCM และแยก Detail เป็นรายวงจร (Circuit)</div></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-ghost" id="pwtcmExpandAll" type="button">⤢ ขยายทั้งหมด</button>
+        <button class="btn btn-ghost" id="pwtcmCollapseAll" type="button">⤡ ย่อทั้งหมด</button>
+        <button class="btn btn-ghost" id="importPwtcmExcel">⬆ อัปโหลดจาก Excel</button>
+        <input type="file" id="pwtcmFileInput" accept=".xlsx,.xls" style="display:none;">
+        <button class="btn btn-ghost" id="exportPwtcmExcel">⬇ Export Excel (Backup)</button>
+        <button class="btn btn-danger" id="clearAllPwtcm">🗑 ล้างข้อมูลทั้งหมด</button>
+        <button class="btn btn-amber" id="addPwtcm">+ เพิ่มรายการ</button>
+      </div>
+    </div>
+    <div id="pwtcmImportStatus"></div>
+    <div class="filters">
+      <div class="field" style="min-width:260px;">
+        <label>ค้นหา</label>
+        <input id="pwtcmSearch" value="${state.pwtcmSearch}" placeholder="ค้นหา Planwork&TCM, Detail, Assingment By ...">
+      </div>
+      <div class="field" style="min-width:160px;">
+        <label>จากวันที่</label>
+        <input type="date" id="pwtcmDateFrom" value="${state.pwtcmDateFrom||''}">
+      </div>
+      <div class="field" style="min-width:160px;">
+        <label>ถึงวันที่</label>
+        <input type="date" id="pwtcmDateTo" value="${state.pwtcmDateTo||''}">
+      </div>
+      <div class="field" style="flex:0 0 auto; align-self:flex-end;">
+        <button class="btn btn-ghost" id="pwtcmDateClearFilter" type="button">ล้างวันที่</button>
+      </div>
+      <div style="font-size:11.5px; color:var(--slate-400); max-width:460px; padding-bottom:4px;">
+        ไฟล์ Excel แถวแรกต้องเป็นหัวตาราง ตรงตามฟอร์มเดิมทุกคำ: D/M/Y, Time, Planwork&TCM, Detail, Assingment By, Remark (ไม่สนตัวพิมพ์เล็ก-ใหญ่) · การอัปโหลดไฟล์จะเพิ่มทุกแถวเป็นรายการใหม่เสมอ ไม่ว่าจะมีวันที่/เวลา/เลข Planwork ซ้ำกับของเดิมหรือไม่
+      </div>
+    </div>
+
+    ${total? groupOrder.map(key=>{
+      const rows = groups[key];
+      const tag = pwGroupTag(rows);
+      return `
+      <details class="card pw-group" open>
+        <summary class="pw-summary">
+          <span class="pw-caret">▸</span>
+          <span class="mono" style="font-weight:700; font-size:14px;">${key} <span style="color:var(--slate-400);">(${tag})</span></span>
+          <span class="hint">${rows.length} รายการ${rows.length>1?' (กลุ่มเดียวกัน)':''}</span>
+        </summary>
+        <div style="margin-top:12px;">
+          ${rows.map(r=>{
+            const items = splitDetailItems(r.detail);
+            return `
+            <div style="border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
+              <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+                <div style="font-size:12.5px;">
+                  <span class="mono" style="font-weight:600;">${dmy(r.date)}</span>
+                  ${r.time? ` <span class="badge">${r.time}</span>` : ''}
+                  ${r.assignBy? ` · ผู้รับผิดชอบ: <b>${r.assignBy}</b>` : ''}
+                </div>
+                <div style="white-space:nowrap;">
+                  <button class="btn btn-ghost btn-sm" data-editpwtcm="${r.id}">แก้ไข</button>
+                  <button class="btn btn-danger btn-sm" data-delpwtcm="${r.id}">ลบ</button>
+                </div>
+              </div>
+              ${items.length? pwtcmItemsTable(items) : `<div class="empty" style="padding:4px 2px; font-size:12.5px;">ไม่มีรายละเอียด</div>`}
+              ${r.remark? `<div style="font-size:12px; color:var(--slate-400); margin-top:8px;">Remark: ${r.remark}</div>` : ''}
+            </div>`;
+          }).join('')}
+        </div>
+      </details>`;
+    }).join('') : `<div class="card"><div class="empty">ยังไม่มีข้อมูล Planwork&TCM(voice) ${q||state.pwtcmDateFrom||state.pwtcmDateTo?'ที่ตรงกับการค้นหา/ตัวกรอง':''}</div></div>`}
+  `;
+}
+
+function pwtcmItemsTable(items){
+  if(!items || !items.length) return '';
+  return `
+    <table style="min-width:520px;">
+      <thead><tr><th style="width:36px;">#</th><th style="width:150px;">Circuit</th><th>รายละเอียด</th></tr></thead>
+      <tbody>
+        ${items.map(it=>`<tr><td class="mono">${it.num||'-'}</td><td class="mono">${extractCircuitId(it.text)||'-'}</td><td style="white-space:pre-wrap;">${it.text}</td></tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+// Splits a Detail cell into per-circuit chunks based on its leading numbering ("1. ", "2. ", ...).
+// Falls back to a single unnumbered chunk when no numbering is found.
+function splitDetailItems(text){
+  if(!text) return [];
+  const t = String(text).trim();
+  if(!t) return [];
+  const regex = /(\d{1,2})\.\s+/g;
+  const marks = [];
+  let m;
+  while((m = regex.exec(t)) !== null){ marks.push({idx:m.index, num:m[1]}); }
+  if(!marks.length) return [{num:'', text:t}];
+  const items = [];
+  for(let i=0;i<marks.length;i++){
+    const start = marks[i].idx;
+    const end = i+1<marks.length ? marks[i+1].idx : t.length;
+    const chunk = t.slice(start, end).trim().replace(/^\d{1,2}\.\s+/, '').trim();
+    if(chunk) items.push({num:marks[i].num, text:chunk});
+  }
+  return items.length ? items : [{num:'', text:t}];
+}
+// Best-effort circuit-code extraction (e.g. "V05541B", "V11324B") for the Circuit column —
+// purely cosmetic, the full text is always shown alongside it regardless.
+function extractCircuitId(text){
+  if(!text) return '';
+  const m = String(text).match(/\b[A-Za-z]{1,4}\d{4,7}[A-Za-z]{0,2}\b/);
+  return m ? m[0] : '';
+}
+// Tags a Planwork&TCM group as "TCM" if any of its rows' Detail mentions "TCR No.",
+// otherwise "PW" — shown in parentheses next to the group's number in the header.
+function pwGroupTag(rows){
+  const hasTcr = rows.some(r=> /TCR\s*No\.?/i.test(r.detail||''));
+  return hasTcr ? 'TCM' : 'PW';
+}
+
+function openPwtcmDialog(existing){
+  const dlg = document.getElementById('dlg');
+  dlg.innerHTML = `
+    <div class="dialog-head"><h3>${existing?'แก้ไข Planwork&TCM(voice)':'เพิ่ม Planwork&TCM(voice)'}</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+    <div class="dialog-body">
+      <div class="field-row">
+        <div class="field"><label>D/M/Y</label><input type="date" id="f_date" value="${existing? existing.date : fmtDate(new Date())}"></div>
+        <div class="field"><label>Time</label><input id="f_time" value="${existing? existing.time||'':''}" placeholder="เช่น 18:00-21:00"></div>
+      </div>
+      <div class="field"><label>Planwork&TCM</label><input id="f_planno" value="${existing? existing.planNo||'':''}" placeholder="เลขที่ CR / Planwork&TCM"></div>
+      <div class="field"><label>Detail</label><textarea id="f_detail" rows="7" placeholder="รายละเอียดงาน แยกแต่ละวงจรด้วยเลขข้อ เช่น 1. ... 2. ... 3. ...">${existing? existing.detail||'':''}</textarea></div>
+      <div class="field"><label>Assingment By</label><select id="f_assign"></select></div>
+      <div class="field"><label>Remark</label><textarea id="f_remark" rows="2" placeholder="หมายเหตุ">${existing? existing.remark||'':''}</textarea></div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-ghost" id="dlgCancel">ยกเลิก</button>
+      <button class="btn btn-amber" id="savePwtcm">บันทึก</button>
+    </div>
+  `;
+  dlg.showModal();
+  dlg.querySelector('#dlgClose').onclick=()=>dlg.close();
+  dlg.querySelector('#dlgCancel').onclick=()=>dlg.close();
+
+  const dateInput = dlg.querySelector('#f_date');
+  const assignSelect = dlg.querySelector('#f_assign');
+  function refreshAssignOptions(){
+    const names = getOnDutyNamesForDate(dateInput.value, 'VOICE and DID');
+    const keepExisting = existing && existing.assignBy && !names.includes(existing.assignBy) ? existing.assignBy : null;
+    const optionNames = keepExisting ? [keepExisting, ...names] : names;
+    if(!optionNames.length){
+      assignSelect.innerHTML = `<option value="">(ไม่มีคนอยู่เวร VOICE/DID วันนี้)</option>`;
+      return;
+    }
+    const wanted = assignSelect.dataset.touched ? assignSelect.value : (existing? existing.assignBy||optionNames[0] : optionNames[0]);
+    assignSelect.innerHTML = optionNames.map(n=>`<option value="${n}">${n}</option>`).join('');
+    assignSelect.value = optionNames.includes(wanted) ? wanted : optionNames[0];
+  }
+  refreshAssignOptions();
+  dateInput.addEventListener('change', refreshAssignOptions);
+  assignSelect.addEventListener('change', ()=> assignSelect.dataset.touched = '1');
+
+  dlg.querySelector('#savePwtcm').onclick = async ()=>{
+    const planNo = dlg.querySelector('#f_planno').value.trim();
+    if(!planNo){ alert('กรุณากรอก Planwork&TCM'); return; }
+    const data = {
+      date: dlg.querySelector('#f_date').value || fmtDate(new Date()),
+      time: dlg.querySelector('#f_time').value.trim(),
+      planNo,
+      detail: dlg.querySelector('#f_detail').value.trim(),
+      assignBy: dlg.querySelector('#f_assign').value.trim(),
+      remark: dlg.querySelector('#f_remark').value.trim(),
+    };
+    const record = existing ? Object.assign({}, existing, data) : {id:uid(), ...data};
+    await saveItem('pwtcm', record);
+    dlg.close(); renderContent();
+  };
+}
+
+/* ---------------- Excel import for Planwork&TCM(voice) (matches "ฟอร์ม planworkTCM voice.xlsx" header row exactly) ---------------- */
+const PWTCM_HEADER_MAP = {
+  'dmy':'date', 'date':'date',
+  'time':'time',
+  'planworktcm':'planNo', 'planworkandtcm':'planNo', 'planworktcmvoice':'planNo', 'planno':'planNo', 'planwork':'planNo',
+  'detail':'detail',
+  'assingmentby':'assignBy', 'assignmentby':'assignBy', 'assignby':'assignBy',
+  'remark':'remark',
+};
+
+async function handlePwtcmExcelImport(file){
+  const statusEl = document.getElementById('pwtcmImportStatus');
+  if(statusEl) statusEl.innerHTML = `<div class="banner">⏳ กำลังอ่านไฟล์ ${file.name} ...</div>`;
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array', cellDates:false});
+    const sheetName = wb.SheetNames[0];
+    const sheet = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:''});
+    if(!rows.length){ throw new Error('ไม่พบข้อมูลในไฟล์'); }
+
+    const headerRow = rows[0];
+    const colMap = {};
+    headerRow.forEach((h, idx)=>{
+      const key = PWTCM_HEADER_MAP[normHeader(h)];
+      if(key) colMap[idx] = key;
+    });
+    if(Object.keys(colMap).length===0){
+      throw new Error('ไม่พบหัวตารางที่ตรงกับรูปแบบไฟล์ "ฟอร์ม planworkTCM voice" (D/M/Y, Time, Planwork&TCM, Detail, Assingment By, Remark) กรุณาตรวจสอบแถวแรกของไฟล์');
+    }
+
+    // This tab always appends every non-empty row as a brand-new record on import —
+    // it deliberately does NOT try to match/update existing rows by Planwork&TCM number,
+    // date, or time, since the same CR number legitimately repeats across separate
+    // maintenance windows and each one should show up as its own line.
+    // work against the freshest server copy so this import can't clobber a record someone
+    // else added/edited while the file was being read
+    const working = await loadList('pwtcm');
+
+    let imported = 0, skipped = 0;
+    for(let r=1; r<rows.length; r++){
+      const row = rows[r];
+      if(!row || row.every(c=>c===''||c===undefined||c===null)){ continue; }
+      const rec = {date:'', time:'', planNo:'', detail:'', assignBy:'', remark:''};
+      Object.entries(colMap).forEach(([idx, key])=>{
+        const val = row[Number(idx)];
+        if(key==='date') rec.date = parseFlexibleDate(val);
+        else rec[key] = String(val===undefined||val===null? '' : val).trim();
+      });
+      const hasContent = rec.planNo || rec.detail;
+      if(!hasContent){ skipped++; continue; }
+      if(!rec.assignBy && rec.date){
+        const names = getOnDutyNamesForDate(rec.date, 'VOICE and DID');
+        if(names.length) rec.assignBy = names[0];
+      }
+      working.push({id:uid(), ...rec});
+      imported++;
+    }
+    await saveList('pwtcm', working);
+    state.pwtcm = working;
+    if(statusEl) statusEl.innerHTML = `<div class="banner">✅ นำเข้าสำเร็จ: เพิ่มรายการใหม่ ${imported} รายการ (เพิ่มเป็นบรรทัดใหม่ทุกแถว ไม่ตรวจซ้ำวันที่/เวลา/เลข Planwork)${skipped? ` (ข้ามแถวว่าง ${skipped} แถว)`:''}</div>`;
+    renderContent();
+  }catch(err){
+    console.error(err);
+    if(statusEl) statusEl.innerHTML = `<div class="banner" style="background:var(--red-dim); color:#8a1f1f;">⚠ นำเข้าไม่สำเร็จ: ${err.message||err}</div>`;
+  }
+}
+
+function exportPwtcmBackup(){
+  if(!state.pwtcm.length){ alert('ไม่มีข้อมูล Planwork&TCM(voice) ให้ Export'); return; }
+  const rows = [['D/M/Y','Time','Planwork&TCM','Detail','Assingment By','Remark']];
+  state.pwtcm.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(r=>{
+    rows.push([dmy(r.date), r.time||'', r.planNo||'', r.detail||'', r.assignBy||'', r.remark||'']);
+  });
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, 'planworkTCM voice');
+  XLSX.writeFile(wb, `PlanworkTCM_voice_Backup_${fmtDate(new Date())}.xlsx`);
+}
+
 /* ================= ARTIFACT (Urgent Circuit Pending Artifact) ================= */
 // Columns mirror the header row of Urgent_Circuit_Pending_Artifact.xlsx:
 // Request Date | Circuit | Requestor Name | Urgent Reason | Artifact Owner |
@@ -4160,6 +4458,50 @@ function bindContentEvents(){
     state.planworks = [];
     state.planworkSelected.clear();
     await saveList('planworks', state.planworks); renderContent();
+  };
+
+  // planwork & TCM (voice)
+  const pwtcmExpandAll = c.querySelector('#pwtcmExpandAll');
+  if(pwtcmExpandAll) pwtcmExpandAll.onclick = ()=>{ c.querySelectorAll('details.pw-group').forEach(d=> d.open = true); };
+  const pwtcmCollapseAll = c.querySelector('#pwtcmCollapseAll');
+  if(pwtcmCollapseAll) pwtcmCollapseAll.onclick = ()=>{ c.querySelectorAll('details.pw-group').forEach(d=> d.open = false); };
+  const pwtcmAdd = c.querySelector('#addPwtcm'); if(pwtcmAdd) pwtcmAdd.onclick = ()=> openPwtcmDialog(null);
+  const pwtcmImportBtn = c.querySelector('#importPwtcmExcel');
+  const pwtcmFileInput = c.querySelector('#pwtcmFileInput');
+  if(pwtcmImportBtn && pwtcmFileInput){
+    pwtcmImportBtn.onclick = ()=> pwtcmFileInput.click();
+    pwtcmFileInput.onchange = (e)=>{
+      const file = e.target.files[0];
+      if(file) handlePwtcmExcelImport(file);
+      pwtcmFileInput.value = '';
+    };
+  }
+  c.querySelectorAll('[data-editpwtcm]').forEach(el=> el.onclick=()=> openPwtcmDialog(state.pwtcm.find(p=>p.id===el.dataset.editpwtcm)));
+  c.querySelectorAll('[data-delpwtcm]').forEach(el=> el.onclick= async ()=>{
+    if(!confirm('ยืนยันการลบรายการ Planwork&TCM(voice) นี้?')) return;
+    await deleteItem('pwtcm', el.dataset.delpwtcm); renderContent();
+  });
+  const pwtcmSearch = c.querySelector('#pwtcmSearch');
+  if(pwtcmSearch){
+    pwtcmSearch.oninput = ()=>{ state.pwtcmSearch = pwtcmSearch.value; };
+    pwtcmSearch.onkeydown = (e)=>{ if(e.key==='Enter'){ renderContent(); } };
+    pwtcmSearch.onblur = ()=>{ renderContent(); };
+  }
+  const pwtcmDateFrom = c.querySelector('#pwtcmDateFrom');
+  if(pwtcmDateFrom) pwtcmDateFrom.onchange = ()=>{ state.pwtcmDateFrom = pwtcmDateFrom.value; renderContent(); };
+  const pwtcmDateTo = c.querySelector('#pwtcmDateTo');
+  if(pwtcmDateTo) pwtcmDateTo.onchange = ()=>{ state.pwtcmDateTo = pwtcmDateTo.value; renderContent(); };
+  const pwtcmDateClearFilter = c.querySelector('#pwtcmDateClearFilter');
+  if(pwtcmDateClearFilter) pwtcmDateClearFilter.onclick = ()=>{ state.pwtcmDateFrom=''; state.pwtcmDateTo=''; renderContent(); };
+  const exportPwtcmExcelBtn = c.querySelector('#exportPwtcmExcel');
+  if(exportPwtcmExcelBtn) exportPwtcmExcelBtn.onclick = ()=> exportPwtcmBackup();
+  const clearAllPwtcmBtn = c.querySelector('#clearAllPwtcm');
+  if(clearAllPwtcmBtn) clearAllPwtcmBtn.onclick = async ()=>{
+    if(!state.pwtcm.length){ alert('ไม่มีข้อมูล Planwork&TCM(voice) ให้ล้าง'); return; }
+    if(!confirm(`⚠ ยืนยันการล้างข้อมูล Planwork&TCM(voice) ทั้งหมด ${state.pwtcm.length} รายการ?\nแนะนำให้กด "Export Excel (Backup)" เพื่อสำรองข้อมูลไว้ก่อน\n\nการลบนี้ไม่สามารถกู้คืนได้`)) return;
+    if(!confirm('ยืนยันอีกครั้ง: ต้องการลบข้อมูล Planwork&TCM(voice) ทั้งหมดจริงหรือไม่?')) return;
+    state.pwtcm = [];
+    await saveList('pwtcm', state.pwtcm); renderContent();
   };
 
   // planwork: pagination
