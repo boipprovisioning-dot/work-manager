@@ -376,6 +376,7 @@ let state = {
   apptSearch: '',
   apptDate: '',
   apptDoneFilter: 'all',
+  apptSortDir: 'asc',
   apptPage: 1,
   apptPageSize: 10,
   planworkSearch: '',
@@ -1645,7 +1646,10 @@ async function handleScheduleExcelImport(file, clearFirst){
 
 /* ================= APPOINTMENTS ================= */
 function viewAppt(){
-  let list = state.appointments.slice().sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
+  let list = state.appointments.slice().sort((a,b)=> {
+    const cmp = (a.date+a.time).localeCompare(b.date+b.time);
+    return state.apptSortDir==='desc'? -cmp : cmp;
+  });
   if(state.apptFilter!=='all') list = list.filter(a=>apptApprovalStatus(a)===state.apptFilter);
   const q = state.apptSearch.trim().toLowerCase();
   if(q){
@@ -1721,7 +1725,7 @@ function viewAppt(){
     <div class="card">
       ${pageList.length? `
       <table>
-        <thead><tr>${isAdmin? `<th style="width:36px;"><label style="display:flex; align-items:center; justify-content:center; padding:6px; cursor:pointer;"><input type="checkbox" id="apptSelectAllChk" style="width:18px; height:18px; cursor:pointer;" ${pendingOnPage.length && selectedPendingOnPage===pendingOnPage.length? 'checked':''}></label></th>`:''}<th>วันที่/เวลา</th><th>Circuit</th><th>ช่างผู้รับผิดชอบ</th><th>แจ้งโดย</th><th>Teams</th><th>สถานะอนุมัติ</th><th>สถานะงาน</th><th></th></tr></thead>
+        <thead><tr>${isAdmin? `<th style="width:36px;"><label style="display:flex; align-items:center; justify-content:center; padding:6px; cursor:pointer;"><input type="checkbox" id="apptSelectAllChk" style="width:18px; height:18px; cursor:pointer;" ${pendingOnPage.length && selectedPendingOnPage===pendingOnPage.length? 'checked':''}></label></th>`:''}<th id="apptSortDateBtn" style="cursor:pointer; user-select:none; white-space:nowrap;" title="กดเพื่อเรียงลำดับวันที่">วันที่/เวลา ${state.apptSortDir==='desc'? '▼':'▲'}</th><th>Circuit</th><th>ช่างผู้รับผิดชอบ</th><th>แจ้งโดย</th><th>Teams</th><th>สถานะอนุมัติ</th><th>สถานะงาน</th><th></th></tr></thead>
         <tbody>
           ${pageList.map(a=>{
             const appr = apptApprovalStatus(a);
@@ -4431,6 +4435,8 @@ function bindContentEvents(){
   if(apptDoneFilter) apptDoneFilter.onchange = ()=>{ state.apptDoneFilter = apptDoneFilter.value; state.apptPage=1; renderContent(); };
   const apptFilterClear = c.querySelector('#apptFilterClear');
   if(apptFilterClear) apptFilterClear.onclick = ()=>{ state.apptSearch=''; state.apptDate=''; state.apptDoneFilter='all'; state.apptPage=1; renderContent(); };
+  const apptSortDateBtn = c.querySelector('#apptSortDateBtn');
+  if(apptSortDateBtn) apptSortDateBtn.onclick = ()=>{ state.apptSortDir = state.apptSortDir==='asc'? 'desc':'asc'; state.apptPage=1; renderContent(); };
 
   // appointments: pagination
   const apptPageSize = c.querySelector('#apptPageSize');
