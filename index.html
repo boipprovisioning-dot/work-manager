@@ -3619,6 +3619,37 @@ function artStatusBadgeCls(a){
   if(/^completed$/i.test((a.statusArtifact||'').trim())) return 'done';
   return artIsOverdue(a) ? 'cancelled' : 'pending';
 }
+function artIsPending(a){
+  return !/^completed$/i.test((a.statusArtifact||'').trim());
+}
+const ART_MAIL_CC = ['prapapan.milintasoot@ericsson.com','nsa-team@truecorp.co.th','bo-ip-pro@ericsson.com'];
+function artMailtoHref(a){
+  const overdue = artIsOverdue(a);
+  const subject = `[${overdue?'เลยกำหนด':'แจ้งเตือน'}] Urgent Circuit Pending Artifact - ${a.circuit||'-'}`;
+  const lines = [
+    `เรียน ${a.owner||'ผู้เกี่ยวข้อง'}`,
+    ``,
+    `แจ้งติดตามสถานะ Artifact ของ Circuit ที่ยังไม่ได้ดำเนินการ ดังนี้`,
+    ``,
+    `Request Date : ${dmy(a.reqDate)}`,
+    `Circuit : ${a.circuit||'-'}`,
+    `Requestor Name : ${a.requestor||'-'}`,
+    `Urgent Reason : ${a.urgentReason||'-'}`,
+    `Artifact Owner : ${a.owner||'-'}`,
+    `Contact Number : ${a.phone||'-'}`,
+    `ArtifactDue : ${dmy(a.dueDate)}${overdue?' (เลยกำหนดแล้ว)':''}`,
+    `Status OFCL : ${a.statusOfcl||'-'}`,
+    `Status Artifact : ${a.statusArtifact||'-'}`,
+    `Comment : ${a.comment||'-'}`,
+    ``,
+    `รบกวนดำเนินการ/อัปเดตสถานะ Artifact ของ Circuit ดังกล่าวด้วยครับ/ค่ะ`,
+    ``,
+    `ขอบคุณครับ/ค่ะ`
+  ];
+  const body = lines.join('\n');
+  const cc = ART_MAIL_CC.map(encodeURIComponent).join(',');
+  return `mailto:${encodeURIComponent(a.email||'')}?cc=${cc}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
 
 function viewArtifact(){
   let list = state.artifacts.slice().sort((a,b)=> (b.reqDate||'').localeCompare(a.reqDate||''));
@@ -3705,6 +3736,7 @@ function viewArtifact(){
       <span style="font-size:12.5px; color:var(--slate-400);">ตั้ง Status Artifact เป็น:</span>
       <button class="btn btn-ghost btn-sm" id="artBulkSetPending" type="button">Pending</button>
       <button class="btn btn-ghost btn-sm" id="artBulkSetCompleted" type="button">✓ Completed</button>
+      <button class="btn btn-amber btn-sm" id="artBulkSendMail" type="button">✉ ส่งเมล์ที่เลือก (เฉพาะ Pending)</button>
       <button class="btn btn-danger btn-sm" id="artBulkDelete" type="button">ลบที่เลือก</button>
       <button class="btn btn-ghost btn-sm" id="artBulkClearSel" type="button">ล้างการเลือก</button>
     </div>` : ''}
@@ -3758,6 +3790,7 @@ function viewArtifact(){
               </td>
               <td style="max-width:160px; white-space:pre-wrap;">${a.comment||'-'}</td>
               <td style="white-space:nowrap;">
+                ${artIsPending(a) ? `<a class="btn btn-amber btn-sm" href="${artMailtoHref(a)}" title="ส่งเมล์แจ้งเตือน Circuit ที่ยังไม่ได้ทำ Artifact" style="text-decoration:none; margin-right:4px;">✉ ส่งเมล์</a>` : ''}
                 <button class="btn btn-ghost btn-sm" data-editart="${a.id}">แก้ไข</button>
                 <button class="btn btn-danger btn-sm" data-delart="${a.id}">ลบ</button>
               </td>
@@ -4680,6 +4713,22 @@ function bindContentEvents(){
   if(artBulkSetCompleted) artBulkSetCompleted.onclick = async ()=>{
     await updateItems('artifacts', state.artifactSelected, a=>{ a.statusArtifact = 'Completed'; });
     renderContent();
+  };
+  const artBulkSendMail = c.querySelector('#artBulkSendMail');
+  if(artBulkSendMail) artBulkSendMail.onclick = ()=>{
+    const selected = state.artifacts.filter(a=> state.artifactSelected.has(a.id) && artIsPending(a));
+    if(!selected.length){ alert('ไม่มีรายการที่เลือกซึ่งยังไม่ได้ทำ Artifact (Pending)'); return; }
+    const emails = [...new Set(selected.map(a=> (a.email||'').trim()).filter(Boolean))];
+    const subject = `[แจ้งเตือน] Urgent Circuit Pending Artifact (${selected.length} รายการ)`;
+    const bodyLines = [`เรียนผู้เกี่ยวข้อง`, ``, `แจ้งติดตามสถานะ Artifact ของ Circuit ที่ยังไม่ได้ดำเนินการ ดังนี้`, ``];
+    selected.forEach((a,i)=>{
+      const overdue = artIsOverdue(a);
+      bodyLines.push(`${i+1}. Circuit: ${a.circuit||'-'} | Requestor: ${a.requestor||'-'} | Owner: ${a.owner||'-'} | Due: ${dmy(a.dueDate)}${overdue?' (เลยกำหนด)':''} | Status: ${a.statusArtifact||'-'}`);
+    });
+    bodyLines.push('', 'รบกวนดำเนินการ/อัปเดตสถานะ Artifact ของ Circuit ดังกล่าวด้วยครับ/ค่ะ', '', 'ขอบคุณครับ/ค่ะ');
+    const cc = ART_MAIL_CC.map(encodeURIComponent).join(',');
+    const href = `mailto:${emails.map(encodeURIComponent).join(',')}?cc=${cc}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyLines.join('\n'))}`;
+    window.location.href = href;
   };
   const artBulkDelete = c.querySelector('#artBulkDelete');
   if(artBulkDelete) artBulkDelete.onclick = async ()=>{
