@@ -3487,23 +3487,16 @@ function openPwtcmDialog(existing){
   dlg.querySelector('#dlgClose').onclick=()=>dlg.close();
   dlg.querySelector('#dlgCancel').onclick=()=>dlg.close();
 
-  const dateInput = dlg.querySelector('#f_date');
   const assignSelect = dlg.querySelector('#f_assign');
   function refreshAssignOptions(){
-    const names = getOnDutyNamesForDate(dateInput.value, 'VOICE and DID');
+    const names = ['Surachat', 'Seksan'];
     const keepExisting = existing && existing.assignBy && !names.includes(existing.assignBy) ? existing.assignBy : null;
     const optionNames = keepExisting ? [keepExisting, ...names] : names;
-    if(!optionNames.length){
-      assignSelect.innerHTML = `<option value="">(ไม่มีคนอยู่เวร VOICE/DID วันนี้)</option>`;
-      return;
-    }
-    const wanted = assignSelect.dataset.touched ? assignSelect.value : (existing? existing.assignBy||optionNames[0] : optionNames[0]);
+    const wanted = existing? existing.assignBy||optionNames[0] : optionNames[0];
     assignSelect.innerHTML = optionNames.map(n=>`<option value="${n}">${n}</option>`).join('');
     assignSelect.value = optionNames.includes(wanted) ? wanted : optionNames[0];
   }
   refreshAssignOptions();
-  dateInput.addEventListener('change', refreshAssignOptions);
-  assignSelect.addEventListener('change', ()=> assignSelect.dataset.touched = '1');
 
   dlg.querySelector('#savePwtcm').onclick = async ()=>{
     const planNo = dlg.querySelector('#f_planno').value.trim();
