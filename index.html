@@ -3627,7 +3627,7 @@ function artMailtoHref(a){
   const overdue = artIsOverdue(a);
   const subject = `[${overdue?'เลยกำหนด':'แจ้งเตือน'}] Urgent Circuit Pending Artifact - ${a.circuit||'-'}`;
   const lines = [
-    `เรียน ${a.owner||'ผู้เกี่ยวข้อง'}`,
+    `เรียน ${a.owner? "K'"+a.owner : 'ผู้เกี่ยวข้อง'} ครับ/ค่ะ`,
     ``,
     `แจ้งติดตามสถานะ Artifact ของ Circuit ที่ยังไม่ได้ดำเนินการ ดังนี้`,
     ``,
