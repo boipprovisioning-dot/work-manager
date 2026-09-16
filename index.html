@@ -334,6 +334,43 @@ function keyToStateField(key){
     'users':'users',
   }[key];
 }
+// which server-side keys back each tab, used by the per-tab refresh button
+const ROUTE_DATA_KEYS = {
+  overview: ['employees','shifts','appointments','leaves'],
+  calendar: ['employees','shifts','leaves'],
+  report: ['employees','shifts','appointments','ot-entries','leaves','planworks','pwtcm','artifacts'],
+  schedule: ['employees','shifts'],
+  appt: ['employees','appointments'],
+  planwork: ['planworks'],
+  pwtcm: ['pwtcm'],
+  artifact: ['artifacts'],
+  ot: ['employees','ot-entries'],
+  leave: ['employees','leaves'],
+  team: ['employees'],
+  users: ['users'],
+};
+function refreshTabBtnHtml(route){
+  return `<button class="btn btn-ghost btn-sm" data-refresh-route="${route}" title="ดึงข้อมูลล่าสุดจากเซิร์ฟเวอร์">⟳ รีเฟรช</button>`;
+}
+async function refreshRouteData(route, btnEl){
+  const keys = ROUTE_DATA_KEYS[route] || [];
+  if(!keys.length) return;
+  const original = btnEl ? btnEl.innerHTML : null;
+  if(btnEl){ btnEl.disabled = true; btnEl.innerHTML = '⟳ กำลังโหลด...'; }
+  try{
+    const results = await Promise.all(keys.map(k=>loadList(k)));
+    keys.forEach((k,i)=>{
+      const field = keyToStateField(k);
+      if(field) state[field] = results[i];
+    });
+    if(state.route === route) renderContent();
+  }catch(e){
+    console.error('refresh fail', route, e);
+    alert('รีเฟรชข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+  }finally{
+    if(btnEl && document.body.contains(btnEl)){ btnEl.disabled = false; btnEl.innerHTML = original; }
+  }
+}
 function subscribeRealtime(){
   try{
     supabaseClient
@@ -748,7 +785,7 @@ function viewOverview(){
 
   return `
     <div class="topbar">
-      <div><h1>ภาพรวมวันนี้</h1><div class="sub mono">${thaiDate(today)}</div></div>
+      <div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><h1>ภาพรวมวันนี้</h1>${refreshTabBtnHtml('overview')}</div><div class="sub mono">${thaiDate(today)}</div></div>
     </div>
     <div class="grid-stats">
       <div class="stat-card amber"><div class="n">${todayShifts.length}</div><div class="l">คนเข้าเวรวันนี้</div></div>
@@ -842,7 +879,7 @@ function viewCalendar(){
 
   return `
     <div class="topbar">
-      <div><h1>ปฏิทิน</h1><div class="sub">ภาพรวมคนอยู่เวรและคนลาในแต่ละวัน คลิกวันที่เพื่อดูรายละเอียด</div></div>
+      <div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><h1>ปฏิทิน</h1>${refreshTabBtnHtml('calendar')}</div><div class="sub">ภาพรวมคนอยู่เวรและคนลาในแต่ละวัน คลิกวันที่เพื่อดูรายละเอียด</div></div>
       <div class="weeknav">
         <button class="btn btn-ghost btn-sm" id="prevCalMonth">←</button>
         <div class="lbl mono">${monthNames[m]} ${y+543}</div>
@@ -1029,7 +1066,7 @@ function viewReport(){
 
   return `
     <div class="topbar">
-      <div><h1>รายงานภาพรวม</h1><div class="sub">สรุปข้อมูลเวร นัดหมาย Planwork OT และการลา ตามช่วงเวลาที่เลือก</div></div>
+      <div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><h1>รายงานภาพรวม</h1>${refreshTabBtnHtml('report')}</div><div class="sub">สรุปข้อมูลเวร นัดหมาย Planwork OT และการลา ตามช่วงเวลาที่เลือก</div></div>
       <div style="display:flex; gap:8px;">
         <button class="btn btn-ghost" id="exportExcelReport">⬇ ส่งออก Excel</button>
         <button class="btn btn-amber" id="exportPptxReport">⬇ ส่งออก PowerPoint</button>
@@ -1466,7 +1503,7 @@ function viewSchedule(){
 
   return `
     <div class="topbar">
-      <div><h1>ตารางเวร</h1><div class="sub">คลิกที่ช่องเพื่อกำหนด/ยกเลิกวันอยู่เวร</div></div>
+      <div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><h1>ตารางเวร</h1>${refreshTabBtnHtml('schedule')}</div><div class="sub">คลิกที่ช่องเพื่อกำหนด/ยกเลิกวันอยู่เวร</div></div>
       <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
         <button class="btn btn-ghost" id="importScheduleExcel">⬆ อัปโหลดจาก Excel</button>
         <input type="file" id="scheduleFileInput" accept=".xlsx,.xls" style="display:none;">
@@ -1681,7 +1718,7 @@ function viewAppt(){
 
   return `
     <div class="topbar">
-      <div><h1>นัดหมายติดตั้ง</h1><div class="sub">ส่งนัดหมายจากหน้างาน และติดตามสถานะการติดตั้ง</div></div>
+      <div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><h1>นัดหมายติดตั้ง</h1>${refreshTabBtnHtml('appt')}</div><div class="sub">ส่งนัดหมายจากหน้างาน และติดตามสถานะการติดตั้ง</div></div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn btn-ghost" id="openSmcMonitor">📡 แจ้ง SMC Monitor</button>
         <button class="btn btn-ghost" id="importApptExcel">⬆ อัปโหลดจาก Excel</button>
@@ -2606,7 +2643,7 @@ function viewPlanwork(){
 
   return `
     <div class="topbar">
-      <div><h1>Planwork</h1><div class="sub">ตารางนัดหมายแผนงาน (Planwork) — Node/MPLS, Vendor และหมายเหตุแจ้งเมล</div></div>
+      <div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><h1>Planwork</h1>${refreshTabBtnHtml('planwork')}</div><div class="sub">ตารางนัดหมายแผนงาน (Planwork) — Node/MPLS, Vendor และหมายเหตุแจ้งเมล</div></div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn btn-ghost" id="importExcel">⬆ อัปโหลดจาก Excel</button>
         <input type="file" id="pwFileInput" accept=".xlsx,.xls" style="display:none;">
@@ -3350,7 +3387,7 @@ function viewPwtcm(){
 
   return `
     <div class="topbar">
-      <div><h1>Planwork&amp;TCM (Voice)</h1><div class="sub">งาน Planwork/TCM ฝั่ง Voice · IP-DID — จัดกลุ่มตามเลข Planwork&amp;TCM และแยก Detail เป็นรายวงจร (Circuit)</div></div>
+      <div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><h1>Planwork&amp;TCM (Voice)</h1>${refreshTabBtnHtml('pwtcm')}</div><div class="sub">งาน Planwork/TCM ฝั่ง Voice · IP-DID — จัดกลุ่มตามเลข Planwork&amp;TCM และแยก Detail เป็นรายวงจร (Circuit)</div></div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn btn-ghost" id="pwtcmExpandAll" type="button">⤢ ขยายทั้งหมด</button>
         <button class="btn btn-ghost" id="pwtcmCollapseAll" type="button">⤡ ย่อทั้งหมด</button>
@@ -3676,7 +3713,7 @@ function viewArtifact(){
 
   return `
     <div class="topbar">
-      <div><h1>Artifact</h1><div class="sub">Urgent Circuit Pending Artifact — ติดตามคำขอติดตั้งด่วนและการขึ้นระบบ Artifact</div></div>
+      <div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><h1>Artifact</h1>${refreshTabBtnHtml('artifact')}</div><div class="sub">Urgent Circuit Pending Artifact — ติดตามคำขอติดตั้งด่วนและการขึ้นระบบ Artifact</div></div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn btn-ghost" id="importArtExcel">⬆ อัปโหลดจาก Excel</button>
         <input type="file" id="artFileInput" accept=".xlsx,.xls" style="display:none;">
@@ -3977,7 +4014,7 @@ function viewOT(){
 
   return `
     <div class="topbar">
-      <div><h1>ชั่วโมง OT</h1><div class="sub">บันทึกและสรุปชั่วโมงทำงานล่วงเวลารายเดือน</div></div>
+      <div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><h1>ชั่วโมง OT</h1>${refreshTabBtnHtml('ot')}</div><div class="sub">บันทึกและสรุปชั่วโมงทำงานล่วงเวลารายเดือน</div></div>
       <button class="btn btn-amber" id="addOT">+ บันทึก OT</button>
     </div>
     <div class="weeknav" style="margin-bottom:14px;">
@@ -4109,7 +4146,7 @@ function viewLeave(){
 
   return `
     <div class="topbar">
-      <div><h1>ตารางแสดงคนลา</h1><div class="sub">ภาพรวมวันลาของพนักงานทั้งทีมแบบรายเดือน</div></div>
+      <div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><h1>ตารางแสดงคนลา</h1>${refreshTabBtnHtml('leave')}</div><div class="sub">ภาพรวมวันลาของพนักงานทั้งทีมแบบรายเดือน</div></div>
       <button class="btn btn-amber" id="addLeave">+ บันทึกวันลา</button>
     </div>
     <div class="weeknav" style="margin-bottom:14px;">
@@ -4222,7 +4259,7 @@ function viewUsers(){
   const active = state.users.filter(u=>u.approved!==false);
   return `
     <div class="topbar">
-      <div><h1>ผู้ใช้งาน</h1><div class="sub">จัดการบัญชีผู้เข้าใช้เว็บนี้ (เฉพาะผู้ดูแลระบบ)</div></div>
+      <div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><h1>ผู้ใช้งาน</h1>${refreshTabBtnHtml('users')}</div><div class="sub">จัดการบัญชีผู้เข้าใช้เว็บนี้ (เฉพาะผู้ดูแลระบบ)</div></div>
       <button class="btn btn-amber" id="addUser">+ เพิ่มผู้ใช้งาน</button>
     </div>
 
@@ -4328,7 +4365,7 @@ function openUserDialog(existing){
 function viewTeam(){
   return `
     <div class="topbar">
-      <div><h1>รายชื่อทีม</h1><div class="sub">จัดการรายชื่อทีมที่ใช้ในตารางเวร นัดหมาย OT และการลา</div></div>
+      <div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><h1>รายชื่อทีม</h1>${refreshTabBtnHtml('team')}</div><div class="sub">จัดการรายชื่อทีมที่ใช้ในตารางเวร นัดหมาย OT และการลา</div></div>
       <button class="btn btn-amber" id="addEmp">+ เพิ่มรายชื่อ</button>
     </div>
     <div class="card">
@@ -4382,6 +4419,9 @@ function openEmpDialog(existing){
 /* ---------------- event binding ---------------- */
 function bindContentEvents(){
   const c = document.getElementById('content');
+
+  // per-tab refresh button
+  c.querySelectorAll('[data-refresh-route]').forEach(el=> el.onclick = ()=> refreshRouteData(el.dataset.refreshRoute, el));
 
   // report
   const expExcel = c.querySelector('#exportExcelReport'); if(expExcel) expExcel.onclick = ()=> exportReportToExcel();
