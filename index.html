@@ -3672,7 +3672,7 @@ function artMailtoHref(a){
     `Status Artifact : ${a.statusArtifact||'-'}`,
     `Comment : ${a.comment||'-'}`,
     ``,
-    `รบกวนดำเนินการ/อัปเดตสถานะ Artifact ของ Circuit ดังกล่าวด้วยครับ/ค่ะ`,
+    `รบกวนดำเนินการขึ้นระบบ Artifact ของ Circuit ดังกล่าวด้วยครับ/ค่ะ`,
     ``,
     `ขอบคุณครับ/ค่ะ`
   ];
@@ -4758,7 +4758,7 @@ function bindContentEvents(){
       const overdue = artIsOverdue(a);
       bodyLines.push(`${i+1}. Circuit: ${a.circuit||'-'} | Requestor: ${a.requestor||'-'} | Owner: ${a.owner||'-'} | Due: ${dmy(a.dueDate)}${overdue?' (เลยกำหนด)':''} | Status: ${a.statusArtifact||'-'}`);
     });
-    bodyLines.push('', 'รบกวนดำเนินการ/อัปเดตสถานะ Artifact ของ Circuit ดังกล่าวด้วยครับ/ค่ะ', '', 'ขอบคุณครับ/ค่ะ');
+    bodyLines.push('', 'รบกวนดำเนินการขึ้นระบบ Artifact ของ Circuit ดังกล่าวด้วยครับ/ค่ะ', '', 'ขอบคุณครับ/ค่ะ');
     const cc = ART_MAIL_CC.map(encodeURIComponent).join(',');
     const href = `mailto:${emails.map(encodeURIComponent).join(',')}?cc=${cc}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyLines.join('\n'))}`;
     window.location.href = href;
