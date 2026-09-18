@@ -3677,7 +3677,7 @@ function artMailtoHref(a){
     `ขอบคุณครับ/ค่ะ`
   ];
   const body = lines.join('\n');
-  const cc = ART_MAIL_CC.map(encodeURIComponent).join(',');
+  const cc = ART_MAIL_CC.map(encodeURIComponent).join(';');
   return `mailto:${encodeURIComponent(a.email||'')}?cc=${cc}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
@@ -4759,7 +4759,7 @@ function bindContentEvents(){
       bodyLines.push(`${i+1}. Circuit: ${a.circuit||'-'} | Requestor: ${a.requestor||'-'} | Owner: ${a.owner||'-'} | Due: ${dmy(a.dueDate)}${overdue?' (เลยกำหนด)':''} | Status: ${a.statusArtifact||'-'}`);
     });
     bodyLines.push('', 'รบกวนดำเนินการขึ้นระบบ Artifact ของ Circuit ดังกล่าวด้วยครับ/ค่ะ', '', 'ขอบคุณครับ/ค่ะ');
-    const cc = ART_MAIL_CC.map(encodeURIComponent).join(',');
+    const cc = ART_MAIL_CC.map(encodeURIComponent).join(';');
     const href = `mailto:${emails.map(encodeURIComponent).join(',')}?cc=${cc}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyLines.join('\n'))}`;
     window.location.href = href;
   };
