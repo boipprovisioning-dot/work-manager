@@ -1762,7 +1762,7 @@ function viewAppt(){
     <div class="card">
       ${pageList.length? `
       <table>
-        <thead><tr>${isAdmin? `<th style="width:36px;"><label style="display:flex; align-items:center; justify-content:center; padding:6px; cursor:pointer;"><input type="checkbox" id="apptSelectAllChk" style="width:18px; height:18px; cursor:pointer;" ${pendingOnPage.length && selectedPendingOnPage===pendingOnPage.length? 'checked':''}></label></th>`:''}<th id="apptSortDateBtn" style="cursor:pointer; user-select:none; white-space:nowrap;" title="กดเพื่อเรียงลำดับวันที่">วันที่/เวลา ${state.apptSortDir==='desc'? '▼':'▲'}</th><th>Circuit</th><th>ช่างผู้รับผิดชอบ</th><th>แจ้งโดย</th><th>Teams</th><th>สถานะอนุมัติ</th><th>สถานะงาน</th><th></th></tr></thead>
+        <thead><tr>${isAdmin? `<th style="width:36px;"><label style="display:flex; align-items:center; justify-content:center; padding:6px; cursor:pointer;"><input type="checkbox" id="apptSelectAllChk" style="width:18px; height:18px; cursor:pointer;" ${pendingOnPage.length && selectedPendingOnPage===pendingOnPage.length? 'checked':''}></label></th>`:''}<th id="apptSortDateBtn" style="cursor:pointer; user-select:none; white-space:nowrap;" title="กดเพื่อเรียงลำดับวันที่">วันที่/เวลา ${state.apptSortDir==='desc'? '▼':'▲'}</th><th>Circuit</th><th>ช่างผู้รับผิดชอบ</th><th>แจ้งโดย</th><th>Teams</th><th>สถานะอนุมัติ</th><th>สถานะงาน</th><th>คนอยู่เวร</th><th></th></tr></thead>
         <tbody>
           ${pageList.map(a=>{
             const appr = apptApprovalStatus(a);
@@ -1771,7 +1771,7 @@ function viewAppt(){
             <tr>
               ${isAdmin? `<td>${appr==='pending'? `<label style="display:flex; align-items:center; justify-content:center; padding:6px; cursor:pointer; width:100%; box-sizing:border-box;"><input type="checkbox" class="appt-row-chk" data-apptrowchk="${a.id}" style="width:18px; height:18px; cursor:pointer;" ${state.apptSelected.has(a.id)?'checked':''}></label>` : ''}</td>`:''}
               <td class="mono">${thaiDate(a.date)}<br>${a.time||''}</td>
-              <td style="font-weight:600;">${a.customer}</td>
+              <td style="font-weight:600;"><a href="#" data-viewappt="${a.id}" title="กดเพื่อดูรายละเอียดนัดหมาย" style="color:inherit; text-decoration:none; cursor:pointer;">${a.customer}</a></td>
               <td>${a.technicianName||empName(a.employeeId)||'-'}${a.technicianPhone? `<div style="font-size:11px;color:var(--slate-400);">${a.technicianPhone}</div>`:''}</td>
               <td style="font-size:12px;">${a.submittedByName||'-'}</td>
               <td>${isAdmin? `
@@ -1782,6 +1782,11 @@ function viewAppt(){
               ` : (a.team||'-')}</td>
               <td>${apptApprovalBadge(a)}${a.approvedBy? `<div style="font-size:10px;color:var(--slate-400); margin-top:3px;">อนุมัติโดย ${a.approvedBy}</div>`:''}</td>
               <td>${apptDoneBadge(a)}${done==='done' && a.doneNote? `<div style="font-size:10px;color:var(--slate-400); margin-top:3px;">หมายเหตุ: ${a.doneNote}</div>`:''}${appr==='cancelled' && a.cancelNote? `<div style="font-size:10px;color:var(--slate-400); margin-top:3px;">หมายเหตุ: ${a.cancelNote}</div>`:''}</td>
+              <td style="font-size:12px;">${(()=>{
+                if(appr!=='approved' && appr!=='done') return '';
+                const emps = (a.notifiedEmployeeIds||[]).map(id=> state.employees.find(e=>e.id===id)).filter(Boolean);
+                return emps.length? emps.map(e=>`<div style="font-weight:600;">${e.name}</div>${e.phone? `<div class="mono" style="font-size:11px;color:var(--slate-400);">${e.phone}</div>`:''}`).join('<div style="height:4px;"></div>') : '';
+              })()}</td>
               <td style="white-space:nowrap;">
                 ${isAdmin && appr==='pending'? `<button class="btn btn-amber btn-sm" data-approveappt="${a.id}">✓ อนุมัติ</button>` : ''}
                 ${isAdmin && appr==='approved' && done!=='done'? `<button class="btn btn-ghost btn-sm" data-doneappt="${a.id}">ทำเครื่องหมายเสร็จสิ้น</button>` : ''}
@@ -2021,6 +2026,43 @@ function buildMailtoLink(to, cc, subject, body){
 let approveState = null; // { apptId, selected:Set<employeeId> }
 
 // kept as the entry point wired from the table's "✓ อนุมัติ" button
+// read-only popup showing everything entered for one appointment (opened by clicking the Circuit)
+function openApptDetailDialog(apptId){
+  const appt = state.appointments.find(a=>a.id===apptId);
+  if(!appt) return;
+  const esc = v=> String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const val = v=> (v===undefined||v===null||String(v).trim()==='')? '<span style="color:var(--slate-400);">-</span>' : esc(v);
+  const appr = apptApprovalStatus(appt), done = apptDoneStatus(appt);
+  const timeTxt = appt.time || [appt.timeStart, appt.timeEnd].filter(Boolean).join('-');
+  const onDuty = (appt.notifiedEmployeeIds||[]).map(id=> state.employees.find(e=>e.id===id)).filter(Boolean)
+    .map(e=> `${esc(e.name)}${e.phone? ` <span class="mono" style="color:var(--slate-400);">(${esc(e.phone)})</span>`:''}`).join('<br>');
+  const row = (label, html)=> `<div style="display:flex; gap:12px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13.5px; line-height:1.55;"><div style="flex:0 0 130px; color:var(--slate-400); font-size:12.5px;">${label}</div><div style="flex:1 1 0%; min-width:0; overflow-wrap:anywhere; white-space:pre-wrap;">${html}</div></div>`;
+  const dlg = document.getElementById('dlg');
+  dlg.innerHTML = `
+    <div class="dialog-head"><h3>รายละเอียดนัดหมายติดตั้ง</h3><button class="icon-btn" id="dlgClose">✕</button></div>
+    <div class="dialog-body">
+      ${row('Circuit', `<b>${val(appt.customer)}</b>`)}
+      ${row('วันที่นัดหมาย', esc(thaiDate(appt.date)))}
+      ${row('เวลา', val(timeTxt))}
+      ${row('ช่างผู้รับผิดชอบ', val(appt.technicianName||empName(appt.employeeId)))}
+      ${row('เบอร์โทรช่าง', val(appt.technicianPhone))}
+      ${row('ผู้แจ้ง', val(appt.submittedByName))}
+      ${row('อีเมลผู้แจ้ง', val(appt.submittedByEmail))}
+      ${row('Teams', val(appt.team))}
+      ${row('หมายเหตุ', val(appt.note))}
+      ${row('สถานะอนุมัติ', apptApprovalBadge(appt) + (appt.approvedBy? ` <span style="font-size:12px; color:var(--slate-400);">โดย ${esc(appt.approvedBy)}${appt.approvedAt? ' ('+esc(appt.approvedAt)+')':''}</span>`:''))}
+      ${row('สถานะงาน', apptDoneBadge(appt))}
+      ${appr==='cancelled' && appt.cancelNote? row('เหตุผลที่ยกเลิก', esc(appt.cancelNote)) : ''}
+      ${done==='done' && appt.doneNote? row('หมายเหตุเสร็จสิ้น', esc(appt.doneNote)) : ''}
+      ${onDuty? row('คนอยู่เวร', onDuty) : ''}
+    </div>
+    <div class="dialog-foot"><button class="btn btn-amber" id="dlgClose2">ปิด</button></div>
+  `;
+  dlg.showModal();
+  dlg.querySelector('#dlgClose').onclick = ()=> dlg.close();
+  dlg.querySelector('#dlgClose2').onclick = ()=> dlg.close();
+}
+
 function approveAppointment(apptId){
   const appt = state.appointments.find(a=>a.id===apptId);
   if(!appt) return;
@@ -4472,6 +4514,7 @@ function bindContentEvents(){
       apptFileInput.value = '';
     };
   }
+  c.querySelectorAll('[data-viewappt]').forEach(el=> el.onclick=(ev)=>{ ev.preventDefault(); openApptDetailDialog(el.dataset.viewappt); });
   c.querySelectorAll('[data-editappt]').forEach(el=> el.onclick=()=> openApptDialog(state.appointments.find(a=>a.id===el.dataset.editappt)));
   c.querySelectorAll('[data-approveappt]').forEach(el=> el.onclick=()=> approveAppointment(el.dataset.approveappt));
   c.querySelectorAll('[data-doneappt]').forEach(el=> el.onclick=()=> openApptStatusDialog(el.dataset.doneappt, 'done'));
